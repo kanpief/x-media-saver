@@ -205,8 +205,28 @@ def api_stream_youtube():
     except Exception as e:
         return f"Lỗi xử lý file: {str(e)}", 500
 
+@app.route("/api/save-cookies", methods=["POST"])
+def api_save_cookies():
+    """Lưu cookies người dùng nhập từ bảng Tùy Chỉnh vào file cookies.txt."""
+    data = request.get_json() or {}
+    cookies_content = data.get("cookies", "").strip()
+    cookies_path = os.path.join(BASE_DIR, "cookies.txt")
+    
+    try:
+        if cookies_content:
+            with open(cookies_path, "w", encoding="utf-8") as f:
+                f.write(cookies_content)
+            return jsonify({"success": True, "message": "Đã lưu Cookies thành công!"})
+        else:
+            if os.path.exists(cookies_path):
+                os.remove(cookies_path)
+            return jsonify({"success": True, "message": "Đã xóa Cookies thành công!"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
 @app.route("/api/open-folder", methods=["POST"])
 def api_open_folder():
+
     """Mở thư mục downloads trên Windows Explorer."""
     try:
         if os.environ.get("RENDER"):

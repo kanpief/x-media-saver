@@ -20,13 +20,102 @@ document.addEventListener("DOMContentLoaded", () => {
     const btnClearHistory = document.getElementById("btn-clear-history");
     const historyList = document.getElementById("history-list");
 
+    // Settings Modal Elements
+    const btnToggleSettings = document.getElementById("btn-toggle-settings");
+    const settingsModal = document.getElementById("settings-modal");
+    const btnCloseSettings = document.getElementById("btn-close-settings");
+    const settingDefaultMp3 = document.getElementById("setting-default-mp3");
+    const settingDefaultVideo = document.getElementById("setting-default-video");
+    const settingAutoExtract = document.getElementById("setting-auto-extract");
+    const settingCookiesInput = document.getElementById("setting-cookies-input");
+    const btnSaveCookies = document.getElementById("btn-save-cookies");
+
     const lightboxModal = document.getElementById("lightbox-modal");
     const lightboxImg = document.getElementById("lightbox-img");
     const lightboxClose = document.getElementById("lightbox-close");
     const lightboxDownloadBtn = document.getElementById("lightbox-download-btn");
 
     let currentMediaData = null;
-    let selectedYtMode = "mp3"; // "mp3" hoặc "video"
+    let selectedYtMode = "mp3";
+
+    // Load Settings from LocalStorage
+    function loadSettings() {
+        const defaultMp3 = localStorage.getItem("setting_default_mp3") || "320";
+        const defaultVideo = localStorage.getItem("setting_default_video") || "best";
+        const autoExtract = localStorage.getItem("setting_auto_extract") !== "false";
+
+        if (settingDefaultMp3) settingDefaultMp3.value = defaultMp3;
+        if (settingDefaultVideo) settingDefaultVideo.value = defaultVideo;
+        if (settingAutoExtract) settingAutoExtract.checked = autoExtract;
+    }
+    loadSettings();
+
+    // Save Settings
+    if (settingDefaultMp3) {
+        settingDefaultMp3.addEventListener("change", () => {
+            localStorage.setItem("setting_default_mp3", settingDefaultMp3.value);
+            showToast("Đã cập nhật chất lượng MP3 mặc định!", "success", 2000);
+        });
+    }
+
+    if (settingDefaultVideo) {
+        settingDefaultVideo.addEventListener("change", () => {
+            localStorage.setItem("setting_default_video", settingDefaultVideo.value);
+            showToast("Đã cập nhật độ phân giải Video mặc định!", "success", 2000);
+        });
+    }
+
+    if (settingAutoExtract) {
+        settingAutoExtract.addEventListener("change", () => {
+            localStorage.setItem("setting_auto_extract", settingAutoExtract.checked);
+            showToast(settingAutoExtract.checked ? "Đã bật tự động phân tích!" : "Đã tắt tự động phân tích!", "info", 2000);
+        });
+    }
+
+    // Save Cookies to Server
+    if (btnSaveCookies) {
+        btnSaveCookies.addEventListener("click", async () => {
+            const cookiesText = settingCookiesInput.value.trim();
+            btnSaveCookies.disabled = true;
+            btnSaveCookies.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Đang lưu...`;
+
+            try {
+                const resp = await fetch("/api/save-cookies", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ cookies: cookiesText })
+                });
+                const res = await resp.json();
+                if (res.success) {
+                    showToast(res.message || "Đã lưu Cookies!", "success");
+                } else {
+                    showToast(res.error || "Lỗi lưu cookies", "error");
+                }
+            } catch (err) {
+                showToast("Lỗi kết nối máy chủ", "error");
+            } finally {
+                btnSaveCookies.disabled = false;
+                btnSaveCookies.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> Lưu Cookies`;
+            }
+        });
+    }
+
+    // Settings Modal Toggle
+    if (btnToggleSettings) {
+        btnToggleSettings.addEventListener("click", () => {
+            settingsModal.classList.remove("hidden");
+        });
+    }
+
+    if (btnCloseSettings) {
+        btnCloseSettings.addEventListener("click", () => {
+            settingsModal.classList.add("hidden");
+        });
+    }
+
+    settingsModal.addEventListener("click", (e) => {
+        if (e.target === settingsModal) settingsModal.classList.add("hidden");
+    });
 
     // Toast Notification System
     function showToast(message, type = "info", duration = 3500) {
@@ -67,7 +156,7 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     });
 
-    // Auto-switch tab based on typed/pasted URL
+    // Auto-switch tab based on input URL
     inputUrl.addEventListener("input", () => {
         const val = inputUrl.value.trim().toLowerCase();
         if (val.length > 0) {
@@ -105,7 +194,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (text) {
                 inputUrl.value = text.trim();
                 btnClear.classList.remove("hidden");
-                showToast("Đã dán liên kết!", "info", 2000);
+                showToast("Đã dán liên kết!", "info", 1800);
                 
                 const val = inputUrl.value.toLowerCase();
                 if (val.includes("youtube.com") || val.includes("youtu.be")) {
@@ -114,7 +203,11 @@ document.addEventListener("DOMContentLoaded", () => {
                     switchActiveTab("twitter");
                 }
 
-                form.dispatchEvent(new Event("submit"));
+                // Check Auto Extract setting
+                const autoExtract = localStorage.getItem("setting_auto_extract") !== "false";
+                if (autoExtract) {
+                    form.dispatchEvent(new Event("submit"));
+                }
             }
         } catch (err) {
             inputUrl.focus();
@@ -169,11 +262,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Render YouTube Result
     function renderYouTubeResult(data) {
-        selectedYtMode = "mp3"; // Default to MP3
-        const isEmbeddable = data.video_id;
+        selectedYtMode = "mp3";
+        const savedDefaultMp3 = localStorage.getItem("setting_default_mp3") || "320";
 
         resultContainer.innerHTML = `
-            <div class="result-card glass-panel">
+            <div class="result-card glass-panel luxury-border">
                 <!-- Channel Info Header -->
                 <div class="tweet-author-header">
                     <div class="author-profile">
@@ -216,7 +309,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         <div class="quality-select-wrapper" id="yt-quality-box">
                             <label for="select-yt-quality" id="yt-quality-label"><i class="fa-solid fa-sliders"></i> Chất lượng MP3:</label>
                             <select id="select-yt-quality" class="select-quality">
-                                ${data.audio_qualities.map(a => `<option value="${a.id}">${a.label}</option>`).join("")}
+                                ${data.audio_qualities.map(a => `<option value="${a.id}" ${a.id === savedDefaultMp3 ? 'selected' : ''}>${a.label}</option>`).join("")}
                             </select>
                         </div>
                         <div class="badge-info">
@@ -229,7 +322,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         <button id="btn-yt-download-server" class="btn btn-music">
                             <i class="fa-solid fa-cloud-arrow-down"></i> <span id="txt-yt-server-btn">Lưu MP3 vào máy tính</span>
                         </button>
-                        <a id="btn-yt-download-browser" href="/api/stream-youtube?url=${encodeURIComponent(data.url)}&type=mp3&quality=320&title=${encodeURIComponent(data.title)}" class="btn btn-secondary" target="_blank">
+                        <a id="btn-yt-download-browser" href="/api/stream-youtube?url=${encodeURIComponent(data.url)}&type=mp3&quality=${savedDefaultMp3}&title=${encodeURIComponent(data.title)}" class="btn btn-secondary" target="_blank">
                             <i class="fa-solid fa-globe"></i> <span id="txt-yt-browser-btn">Tải MP3 qua trình duyệt</span>
                         </a>
                     </div>
@@ -251,7 +344,6 @@ document.addEventListener("DOMContentLoaded", () => {
         const txtServerBtn = document.getElementById("txt-yt-server-btn");
         const txtBrowserBtn = document.getElementById("txt-yt-browser-btn");
 
-        // Format Switcher Handlers (MP3 vs Video)
         formatTabs.forEach(tab => {
             tab.addEventListener("click", () => {
                 formatTabs.forEach(t => t.classList.remove("active"));
@@ -259,16 +351,18 @@ document.addEventListener("DOMContentLoaded", () => {
                 selectedYtMode = tab.dataset.mode;
 
                 if (selectedYtMode === "mp3") {
+                    const savedDefaultMp3 = localStorage.getItem("setting_default_mp3") || "320";
                     qualityLabel.innerHTML = `<i class="fa-solid fa-sliders"></i> Chất lượng MP3:`;
-                    selectQuality.innerHTML = data.audio_qualities.map(a => `<option value="${a.id}">${a.label}</option>`).join("");
+                    selectQuality.innerHTML = data.audio_qualities.map(a => `<option value="${a.id}" ${a.id === savedDefaultMp3 ? 'selected' : ''}>${a.label}</option>`).join("");
                     badgeDisplay.className = "tweet-badge mp3-badge";
                     badgeDisplay.innerHTML = `<i class="fa-solid fa-music"></i> Âm Thanh Chuẩn 320kbps`;
                     btnServer.className = "btn btn-music";
                     txtServerBtn.innerText = "Lưu MP3 vào máy tính";
                     txtBrowserBtn.innerText = "Tải MP3 qua trình duyệt";
                 } else {
+                    const savedDefaultVid = localStorage.getItem("setting_default_video") || "best";
                     qualityLabel.innerHTML = `<i class="fa-solid fa-sliders"></i> Độ phân giải Video:`;
-                    selectQuality.innerHTML = data.video_qualities.map(v => `<option value="${v.id}">${v.label}</option>`).join("");
+                    selectQuality.innerHTML = data.video_qualities.map(v => `<option value="${v.id}" ${v.format_id === savedDefaultVid ? 'selected' : ''}>${v.label}</option>`).join("");
                     badgeDisplay.className = "tweet-badge yt-badge";
                     badgeDisplay.innerHTML = `<i class="fa-solid fa-film"></i> Video MP4 Full HD`;
                     btnServer.className = "btn btn-youtube";
@@ -404,7 +498,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         resultContainer.innerHTML = `
-            <div class="result-card glass-panel">
+            <div class="result-card glass-panel luxury-border">
                 <!-- Tweet Author Header -->
                 <div class="tweet-author-header">
                     <div class="author-profile">
