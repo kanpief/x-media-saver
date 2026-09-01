@@ -299,19 +299,86 @@ def get_yt_opts(extra_opts=None):
         opts.update(extra_opts)
     return opts
 
+def extract_via_oembed(video_id: str) -> dict:
+    """Trích xuất thông tin tiêu đề, tác giả, thumbnail trực tiếp qua YouTube oEmbed API (không bao giờ bị bot check)."""
+    try:
+        url = f"https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={video_id}&format=json"
+        resp = requests.get(url, headers=HEADERS, timeout=8)
+        if resp.status_code == 200:
+            data = resp.json()
+            return {
+                "title": data.get("title", "YouTube Video"),
+                "uploader": data.get("author_name", "YouTube Channel"),
+                "thumbnail": f"https://i.ytimg.com/vi/{video_id}/maxresdefault.jpg"
+            }
+    except Exception:
+        pass
+    return None
+
+def convert_via_cloud_api(video_url: str, target_type: str, quality_id: str, output_path: str) -> str:
+    """Tải và chuyển đổi MP3/MP4 qua Cloud Converter Server khi yt-dlp bị Render IP chặn."""
+    fmt = "mp3" if target_type == "mp3" else ("1080" if "1080" in quality_id else "720")
+    api_url = f"https://loader.to/ajax/download.php?button=1&start=1&end=1&format={fmt}&url={video_url}"
+    
+    resp = requests.get(api_url, headers=HEADERS, timeout=12)
+    resp_data = resp.json()
+    if not resp_data.get("success"):
+        raise ValueError("Cloud API chuyển đổi phản hồi không thành công.")
+
+    progress_url = resp_data.get("progress_url")
+    if not progress_url:
+        raise ValueError("Không nhận được luồng chuyển đổi từ máy chủ.")
+
+    download_url = None
+    for _ in range(40): # Đợi tối đa 60 giây cho các file nhạc dài
+        time.sleep(1.5)
+        try:
+            pr_res = requests.get(progress_url, headers=HEADERS, timeout=8).json()
+            if pr_res.get("download_url"):
+                download_url = pr_res["download_url"]
+                break
+            if pr_res.get("success") == 1 and pr_res.get("progress") == 1000:
+                download_url = pr_res.get("download_url")
+                break
+        except Exception:
+            continue
+
+    if not download_url:
+        raise ValueError("Quá trình chuyển đổi vượt quá thời gian cho phép. Vui lòng thử lại!")
+
+    # Tải file từ download_url về output_path
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    ext = "mp3" if target_type == "mp3" else "mp4"
+    base_output = os.path.splitext(output_path)[0]
+    final_file = f"{base_output}.{ext}"
+
+    download_file(download_url, final_file)
+    return final_file
+
 def extract_youtube_media(url: str) -> dict:
     """Trích xuất thông tin video YouTube, phân loại các định dạng Video MP4 & Audio MP3 với cơ chế đa tầng."""
     clean_url = clean_youtube_url(url)
     
+    # Lấy video ID
+    video_id = ""
+    v_match = re.search(r'[?&]v=([a-zA-Z0-9_-]+)', clean_url)
+    if v_match:
+        video_id = v_match.group(1)
+
+    title = "YouTube Video"
+    uploader = "YouTube Channel"
+    duration = 0
+    view_count = "N/A"
+    thumbnail = f"https://i.ytimg.com/vi/{video_id}/maxresdefault.jpg" if video_id else ""
+
+    # Bước 1: Thử trích xuất qua yt-dlp
     client_candidates = [
         ['tv_embedded', 'android_vr'],
         ['android', 'mweb'],
         ['ios', 'web_creator']
     ]
     
-    info = None
-    last_err = None
-
+    extracted_via_ytdlp = False
     for clients in client_candidates:
         try:
             ydl_opts = get_yt_opts({
@@ -324,31 +391,29 @@ def extract_youtube_media(url: str) -> dict:
                 }
             })
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                extracted = ydl.extract_info(clean_url, download=False)
-                if extracted:
-                    info = extracted
+                info = ydl.extract_info(clean_url, download=False)
+                if info:
+                    if "entries" in info and info["entries"]:
+                        info = info["entries"][0]
+                    title = info.get('title', title)
+                    uploader = info.get('uploader', uploader)
+                    duration = info.get('duration', duration)
+                    view_count = f"{info.get('view_count', 0):,}" if info.get('view_count') else "N/A"
+                    thumbnail = info.get('thumbnail', thumbnail)
+                    extracted_via_ytdlp = True
                     break
-        except Exception as e:
-            last_err = e
+        except Exception:
             continue
 
-    if not info:
-        raise ValueError(f"Không thể trích xuất video YouTube: {str(last_err or 'Vui lòng thử lại')}")
+    # Bước 2: Nếu yt-dlp bị Render IP chặn, fallback sang YouTube Official oEmbed API (không bao giờ bị bot check)
+    if not extracted_via_ytdlp and video_id:
+        oembed_data = extract_via_oembed(video_id)
+        if oembed_data:
+            title = oembed_data.get("title", title)
+            uploader = oembed_data.get("uploader", uploader)
+            thumbnail = oembed_data.get("thumbnail", thumbnail)
+            duration = 0
 
-    # Nếu là playlist lồng nhau, lấy video đầu tiên
-    if "entries" in info and info["entries"]:
-        info = info["entries"][0]
-
-    title = info.get('title', 'YouTube Video')
-    video_id = info.get('id', '')
-    uploader = info.get('uploader', 'YouTube Channel')
-    duration = info.get('duration', 0)
-    view_count = info.get('view_count', 0)
-    thumbnail = info.get('thumbnail', f"https://i.ytimg.com/vi/{video_id}/maxresdefault.jpg")
-
-    formats = info.get('formats', [])
-    
-    # Danh sách video chất lượng cao
     video_qualities = [
         {"id": "bestvideo+bestaudio/best", "label": "Full HD / 4K Tốt Nhất (MP4)", "format_id": "best", "ext": "mp4"},
         {"id": "bestvideo[height<=1080]+bestaudio/best[height<=1080]", "label": "1080p Full HD (MP4)", "format_id": "1080p", "ext": "mp4"},
@@ -357,18 +422,11 @@ def extract_youtube_media(url: str) -> dict:
         {"id": "bestvideo[height<=360]+bestaudio/best[height<=360]", "label": "360p Nhẹ Nhất (MP4)", "format_id": "360p", "ext": "mp4"},
     ]
 
-    # Danh sách audio MP3 chất lượng cao
     audio_qualities = [
         {"id": "320", "label": "Chất lượng cực cao (MP3 320kbps)", "bitrate": "320k", "ext": "mp3"},
         {"id": "192", "label": "Chất lượng chuẩn Studio (MP3 192kbps)", "bitrate": "192k", "ext": "mp3"},
         {"id": "128", "label": "Chất lượng tiêu chuẩn (MP3 128kbps)", "bitrate": "128k", "ext": "mp3"},
     ]
-
-    direct_stream_url = None
-    for f in reversed(formats):
-        if f.get('vcodec') != 'none' and f.get('acodec') != 'none' and f.get('ext') == 'mp4':
-            direct_stream_url = f.get('url')
-            break
 
     return {
         "platform": "youtube",
@@ -376,59 +434,60 @@ def extract_youtube_media(url: str) -> dict:
         "title": title,
         "uploader": uploader,
         "duration": duration,
-        "duration_str": format_duration(duration),
-        "view_count": f"{view_count:,}" if view_count else "N/A",
+        "duration_str": format_duration(duration) if duration else "Chuẩn HD",
+        "view_count": view_count,
         "thumbnail": thumbnail,
         "video_qualities": video_qualities,
         "audio_qualities": audio_qualities,
-        "direct_stream_url": direct_stream_url or thumbnail,
-        "url": url
+        "direct_stream_url": thumbnail,
+        "url": clean_url
     }
 
-
 def download_youtube_file(url: str, target_type: str, quality_id: str, output_path: str) -> str:
-    """Tải và chuyển đổi YouTube video hoặc MP3 audio."""
+    """Tải và chuyển đổi YouTube video hoặc MP3 audio (tự động fallback sang Cloud Converter nếu bị chặn)."""
     clean_url = clean_youtube_url(url)
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     base_output = os.path.splitext(output_path)[0]
 
-    extra_opts = {
-        'outtmpl': f"{base_output}.%(ext)s",
-        'noplaylist': True,
-    }
+    # Cách 1: Thử tải qua yt-dlp
+    try:
+        extra_opts = {
+            'outtmpl': f"{base_output}.%(ext)s",
+            'noplaylist': True,
+        }
+        if target_type == "mp3":
+            extra_opts.update({
+                'format': 'bestaudio/best',
+                'postprocessors': [{
+                    'key': 'FFmpegExtractAudio',
+                    'preferredcodec': 'mp3',
+                    'preferredquality': quality_id or '320',
+                }],
+            })
+        else:
+            format_spec = quality_id or 'bestvideo+bestaudio/best'
+            extra_opts.update({
+                'format': format_spec,
+                'merge_output_format': 'mp4',
+            })
 
-    if target_type == "mp3":
-        extra_opts.update({
-            'format': 'bestaudio/best',
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
-                'preferredquality': quality_id or '320',
-            }],
-        })
-    else:
-        format_spec = quality_id or 'bestvideo+bestaudio/best'
-        extra_opts.update({
-            'format': format_spec,
-            'merge_output_format': 'mp4',
-        })
+        ydl_opts = get_yt_opts(extra_opts)
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([clean_url])
 
-    ydl_opts = get_yt_opts(extra_opts)
+        expected_file = f"{base_output}.mp3" if target_type == "mp3" else f"{base_output}.mp4"
+        if os.path.exists(expected_file):
+            return expected_file
+        for ext in [".mp4", ".mp3", ".m4a", ".webm", ".mkv"]:
+            p = f"{base_output}{ext}"
+            if os.path.exists(p):
+                return p
+    except Exception as e:
+        print(f"yt-dlp download failed, switching to cloud converter: {e}")
 
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        ydl.download([clean_url])
+    # Cách 2: Tự động fallback sang Cloud Converter Server
+    return convert_via_cloud_api(clean_url, target_type, quality_id, output_path)
 
-
-    expected_file = f"{base_output}.mp3" if target_type == "mp3" else f"{base_output}.mp4"
-    if os.path.exists(expected_file):
-        return expected_file
-    
-    for ext in [".mp4", ".mp3", ".m4a", ".webm", ".mkv"]:
-        p = f"{base_output}{ext}"
-        if os.path.exists(p):
-            return p
-
-    return output_path
 
 
 # ==================== MAIN DISPATCHER ====================
