@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>X Media Downloader | Tải Ảnh & Video X Chất Lượng Cao</title>
+    <meta name="description" content="Tải ảnh gốc :orig và video độ phân giải cao nhất từ X (Twitter) cực nhanh, sắc nét, hoàn toàn miễn phí.">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <!-- Ambient Background Glows -->
+    <div class="ambient-glow glow-1"></div>
+    <div class="ambient-glow glow-2"></div>
+    <div class="ambient-glow glow-3"></div>
+
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="brand">
+                <div class="brand-logo">
+                    <i class="fa-brands fa-x-twitter"></i>
+                </div>
+                <div class="brand-info">
+                    <h1>X Media <span class="gradient-text">Pro Saver</span></h1>
+                    <p class="subtitle">Trích xuất ảnh gốc <strong>:orig</strong> & video <strong>Full HD / 4K</strong> không nén</p>
+                </div>
+            </div>
+            
+            <div class="header-actions">
+                <button id="btn-open-folder" class="btn btn-secondary" title="Mở thư mục lưu trên máy tính">
+                    <i class="fa-solid fa-folder-open"></i>
+                    <span>Thư mục lưu</span>
+                </button>
+                <button id="btn-toggle-history" class="btn btn-secondary" title="Lịch sử tải xuống">
+                    <i class="fa-solid fa-clock-rotate-left"></i>
+                    <span>Lịch sử</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Search & Input Card -->
+            <section class="input-card glass-panel">
+                <form id="extract-form" class="search-form">
+                    <div class="input-wrapper">
+                        <i class="fa-solid fa-link input-icon"></i>
+                        <input 
+                            type="text" 
+                            id="tweet-url-input" 
+                            placeholder="Dán liên kết bài viết X (Twitter) vào đây... vd: https://x.com/user/status/..." 
+                            autocomplete="off"
+                            spellcheck="false"
+                            required
+                        >
+                        <button type="button" id="btn-paste" class="action-chip" title="Dán từ Clipboard">
+                            <i class="fa-regular fa-clipboard"></i>
+                            <span>Dán</span>
+                        </button>
+                        <button type="button" id="btn-clear" class="action-chip btn-clear hidden" title="Xóa">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+
+                    <button type="submit" id="btn-submit" class="btn btn-primary btn-glow">
+                        <span class="btn-text">
+                            <i class="fa-solid fa-bolt"></i>
+                            <span>Lấy Dữ Liệu</span>
+                        </span>
+                        <span class="btn-loader hidden">
+                            <i class="fa-solid fa-circle-notch fa-spin"></i>
+                            <span>Đang trích xuất...</span>
+                        </span>
+                    </button>
+                </form>
+
+                <div class="quick-hints">
+                    <span class="hint-item"><i class="fa-solid fa-check"></i> Ảnh độ phân giải gốc 100% (Original :orig)</span>
+                    <span class="hint-item"><i class="fa-solid fa-check"></i> Video 60fps MP4 bitrate cao nhất</span>
+                    <span class="hint-item"><i class="fa-solid fa-check"></i> Hỗ trợ bài viết nhiều ảnh (Multi-images)</span>
+                </div>
+            </section>
+
+            <!-- Loading State Skeleton -->
+            <div id="skeleton-loading" class="skeleton-container hidden">
+                <div class="skeleton-card glass-panel">
+                    <div class="skeleton-header">
+                        <div class="skeleton-avatar"></div>
+                        <div class="skeleton-lines">
+                            <div class="skeleton-line w-40"></div>
+                            <div class="skeleton-line w-25"></div>
+                        </div>
+                    </div>
+                    <div class="skeleton-line w-90"></div>
+                    <div class="skeleton-line w-75"></div>
+                    <div class="skeleton-media"></div>
+                </div>
+            </div>
+
+            <!-- Result Card Container -->
+            <div id="result-container" class="result-container hidden">
+                <!-- Injected via JavaScript -->
+            </div>
+        </main>
+
+        <!-- History Modal Drawer -->
+        <div id="history-modal" class="modal-backdrop hidden">
+            <div class="modal-card glass-panel">
+                <div class="modal-header">
+                    <div class="modal-title">
+                        <i class="fa-solid fa-clock-rotate-left"></i>
+                        <h3>Lịch sử đã tải gần đây</h3>
+                    </div>
+                    <div class="modal-controls">
+                        <button id="btn-clear-history" class="btn btn-sm btn-danger" title="Xóa toàn bộ lịch sử">
+                            <i class="fa-solid fa-trash-can"></i> Xóa lịch sử
+                        </button>
+                        <button id="btn-close-history" class="btn-close" title="Đóng">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="modal-body" id="history-list">
+                    <!-- History items rendered here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Lightbox / Image Preview Modal -->
+        <div id="lightbox-modal" class="lightbox-backdrop hidden">
+            <button id="lightbox-close" class="lightbox-close" title="Đóng xem trước">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <div class="lightbox-content">
+                <img id="lightbox-img" src="" alt="Xem trước ảnh gốc">
+                <div class="lightbox-actions">
+                    <a id="lightbox-download-btn" href="#" class="btn btn-primary" download target="_blank">
+                        <i class="fa-solid fa-download"></i> Tải ảnh gốc này
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast Notifications -->
+        <div id="toast-container" class="toast-container"></div>
+    </div>
+
+    <!-- Main Javascript -->
+    <script src="/static/js/main.js"></script>
+</body>
+</html>
