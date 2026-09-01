@@ -411,9 +411,11 @@ document.addEventListener("DOMContentLoaded", () => {
         const btnCloseProgress = document.getElementById("btn-close-progress");
 
         let progressInterval = null;
+        let isDownloading = false;
 
         if (btnCloseProgress) {
             btnCloseProgress.addEventListener("click", () => {
+                if (isDownloading) return; // Khoá khi đang tải
                 if (progressInterval) clearInterval(progressInterval);
                 downloadProgressModal.classList.add("hidden");
             });
@@ -421,6 +423,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (downloadProgressModal) {
             downloadProgressModal.addEventListener("click", (e) => {
                 if (e.target === downloadProgressModal) {
+                    if (isDownloading) return; // Khoá khi đang tải
                     if (progressInterval) clearInterval(progressInterval);
                     downloadProgressModal.classList.add("hidden");
                 }
@@ -443,6 +446,14 @@ document.addEventListener("DOMContentLoaded", () => {
             if (pstep2) pstep2.classList.remove("active");
             if (pstep3) pstep3.classList.remove("active");
             if (downloadProgressModal) downloadProgressModal.classList.remove("hidden");
+
+            // Khoá nút đóng khi đang tải
+            isDownloading = true;
+            if (btnCloseProgress) {
+                btnCloseProgress.style.opacity = "0.3";
+                btnCloseProgress.style.cursor = "not-allowed";
+                btnCloseProgress.title = "Đang tải... Vui lòng đợi.";
+            }
 
             // ── Phase 1: Khởi động background download ─────────────────────────
             const startUrl = `/api/start-download?url=${encodeURIComponent(data.url)}&type=${selectedYtMode}&quality=${encodeURIComponent(q)}&title=${encodeURIComponent(data.title)}&task_id=${taskId}`;
@@ -474,6 +485,15 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (progressSizeStats && size) progressSizeStats.innerHTML = size;
             };
 
+            const unlockClose = () => {
+                isDownloading = false;
+                if (btnCloseProgress) {
+                    btnCloseProgress.style.opacity = "";
+                    btnCloseProgress.style.cursor = "";
+                    btnCloseProgress.title = "Đóng";
+                }
+            };
+
             const triggerFileDownload = () => {
                 if (downloadTriggered) return;
                 downloadTriggered = true;
@@ -496,6 +516,12 @@ document.addEventListener("DOMContentLoaded", () => {
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
+
+                // Mở khóa nút đóng sau 3s (đủ để browser nhận file)
+                setTimeout(() => {
+                    unlockClose();
+                    if (progressStatusDesc) progressStatusDesc.innerText = `✅ Đã lưu vào thư mục Downloads!`;
+                }, 3000);
             };
 
             progressInterval = setInterval(async () => {
@@ -528,7 +554,8 @@ document.addEventListener("DOMContentLoaded", () => {
                         return;
                     } else if (info && info.status === "error") {
                         clearInterval(progressInterval);
-                        if (progressStatusDesc) progressStatusDesc.innerText = `Lỗi: ${info.eta || 'Không thể tải'}`;
+                        unlockClose();
+                        if (progressStatusDesc) progressStatusDesc.innerText = `❌ Lỗi: ${info.eta || 'Không thể tải. Vui lòng thử lại!'}`;
                         return;
                     }
                 } catch (_) {}
