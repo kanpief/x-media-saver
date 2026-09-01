@@ -440,12 +440,14 @@ document.addEventListener("DOMContentLoaded", () => {
             }, 3500);
 
             // Kích hoạt trình tải của trình duyệt
+            const ext = selectedYtMode === "mp3" ? "mp3" : "mp4";
             const a = document.createElement("a");
             a.href = dlUrl;
-            a.download = `${data.title}.${selectedYtMode}`;
+            a.download = `${data.title}.${ext}`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
+
         });
 
 
