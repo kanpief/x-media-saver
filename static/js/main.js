@@ -742,67 +742,46 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const btnDlVideoServer = document.getElementById("btn-dl-video-server");
         if (btnDlVideoServer) {
-            btnDlVideoServer.addEventListener("click", async () => {
+            btnDlVideoServer.addEventListener("click", () => {
                 const targetUrl = selectQuality ? selectQuality.value : data.videos[0].download_url;
-                btnDlVideoServer.disabled = true;
-                btnDlVideoServer.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Đang lưu...`;
-                
-                try {
-                    const resp = await fetch("/api/download-server", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            platform: "twitter",
-                            items: [{ url: targetUrl, type: "video" }],
-                            tweet_id: data.tweet_id,
-                            author: data.author_username
-                        })
-                    });
-                    const res = await safeJson(resp);
-                    if (res.success) {
-                        showToast("Đã lưu video thành công vào thư mục Downloads!", "success");
-                    } else {
-                        showToast(res.error || "Lỗi khi lưu video.", "error");
-                    }
-                } catch (err) {
-                    showToast(err.message, "error");
-                } finally {
-                    btnDlVideoServer.disabled = false;
-                    btnDlVideoServer.innerHTML = `<i class="fa-solid fa-download"></i> Lưu vào máy tính`;
-                }
+                const fname = `X_${data.author_username}_${data.tweet_id}`;
+                const a = document.createElement("a");
+                a.href = `/api/stream-file?url=${encodeURIComponent(targetUrl)}&name=${encodeURIComponent(fname)}&ext=mp4`;
+                a.download = `${fname}.mp4`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                showToast("Đang tải video về máy...", "info");
             });
         }
 
         const btnDlPhotosServer = document.getElementById("btn-dl-photos-server");
         if (btnDlPhotosServer) {
             btnDlPhotosServer.addEventListener("click", async () => {
+                const photos = data.photos;
+                showToast(`Đang tải ${photos.length} ảnh về máy...`, "info");
                 btnDlPhotosServer.disabled = true;
-                btnDlPhotosServer.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Đang tải ${data.photos.length} ảnh...`;
+                btnDlPhotosServer.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Đang tải...`;
 
-                const items = data.photos.map(p => ({ url: p.download_url, type: "image" }));
-                try {
-                    const resp = await fetch("/api/download-server", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            platform: "twitter",
-                            items: items,
-                            tweet_id: data.tweet_id,
-                            author: data.author_username
-                        })
-                    });
-                    const res = await safeJson(resp);
-                    if (res.success) {
-                        showToast(`Đã lưu toàn bộ ${res.files.length} ảnh gốc vào thư mục Downloads!`, "success");
-                    } else {
-                        showToast(res.error || "Lỗi khi tải ảnh.", "error");
-                    }
-                } catch (err) {
-                    showToast(err.message, "error");
-                } finally {
-                    btnDlPhotosServer.disabled = false;
-                    btnDlPhotosServer.innerHTML = `<i class="fa-solid fa-cloud-arrow-down"></i> Tải tất cả (${data.photos.length} ảnh) vào máy`;
+                // Tải từng ảnh lần lượt với delay nhỏ
+                for (let i = 0; i < photos.length; i++) {
+                    const p = photos[i];
+                    const ext = p.download_url.includes('.png') ? 'png' : 'jpg';
+                    const fname = `X_${data.author_username}_${data.tweet_id}_${i+1}`;
+                    const a = document.createElement("a");
+                    a.href = `/api/stream-file?url=${encodeURIComponent(p.download_url)}&name=${encodeURIComponent(fname)}&ext=${ext}`;
+                    a.download = `${fname}.${ext}`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    if (i < photos.length - 1) await new Promise(r => setTimeout(r, 800));
                 }
+
+                setTimeout(() => {
+                    btnDlPhotosServer.disabled = false;
+                    btnDlPhotosServer.innerHTML = `<i class="fa-solid fa-cloud-arrow-down"></i> Tải tất cả (${photos.length} ảnh) vào máy`;
+                    showToast(`Đã gửi ${photos.length} ảnh gốc! Kiểm tra mục Downloads.`, "success");
+                }, photos.length * 800 + 500);
             });
         }
     }

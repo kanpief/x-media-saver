@@ -68,8 +68,8 @@ def add_security_headers(response):
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com https://ka-f.fontawesome.com; "
         "font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com https://ka-f.fontawesome.com data:; "
         "img-src 'self' data: https: blob:; "
-        "connect-src 'self' https://ka-f.fontawesome.com https://cdnjs.cloudflare.com; "
-        "media-src 'self' blob:;"
+        "media-src 'self' blob: https://video.twimg.com https://pbs.twimg.com https://t.co; "
+        "connect-src 'self' https://ka-f.fontawesome.com https://cdnjs.cloudflare.com https://fonts.googleapis.com; "
     )
     return response
 
