@@ -236,7 +236,21 @@ def extract_tweet_media(url_or_id: str) -> dict:
 
 # ==================== YOUTUBE & MP3 EXTRACTOR ====================
 
+def format_duration(seconds: int) -> str:
+    """Định dạng số giây sang mm:ss hoặc hh:mm:ss."""
+    if not seconds:
+        return "0:00"
+    try:
+        m, s = divmod(int(seconds), 60)
+        h, m = divmod(m, 60)
+        if h > 0:
+            return f"{h}:{m:02d}:{s:02d}"
+        return f"{m}:{s:02d}"
+    except Exception:
+        return "0:00"
+
 def clean_youtube_url(url: str) -> str:
+
     """Loại bỏ các tham số playlist, radio mix (&list=, &start_radio=, &index=) để chỉ trích xuất đúng 1 video đích tức thì."""
     if not url:
         return url
