@@ -3,7 +3,8 @@ services:
     name: x-media-saver
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app
+    startCommand: gunicorn --timeout 300 --workers 2 app:app
+
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.8

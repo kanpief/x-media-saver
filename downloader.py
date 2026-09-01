@@ -459,7 +459,8 @@ def download_youtube_file(url: str, target_type: str, quality_id: str, output_pa
         }
         if target_type == "mp3":
             extra_opts.update({
-                'format': 'bestaudio/best',
+                'format': 'bestaudio[ext=m4a]/bestaudio/best',
+                'concurrent_fragment_downloads': 4,
                 'postprocessors': [{
                     'key': 'FFmpegExtractAudio',
                     'preferredcodec': 'mp3',
@@ -470,8 +471,10 @@ def download_youtube_file(url: str, target_type: str, quality_id: str, output_pa
             format_spec = quality_id or 'bestvideo+bestaudio/best'
             extra_opts.update({
                 'format': format_spec,
+                'concurrent_fragment_downloads': 4,
                 'merge_output_format': 'mp4',
             })
+
 
         ydl_opts = get_yt_opts(extra_opts)
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
