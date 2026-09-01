@@ -212,7 +212,7 @@ def api_download_zip():
             return (f"{name}.{ext}", None)
 
     zip_buf = io.BytesIO()
-    with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
+    with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_STORED) as zf:
         with ThreadPoolExecutor(max_workers=min(len(items), 6)) as pool:
             futures = {pool.submit(fetch_one, item): item for item in items}
             for future in as_completed(futures):

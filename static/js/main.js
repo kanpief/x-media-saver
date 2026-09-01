@@ -594,9 +594,6 @@ document.addEventListener("DOMContentLoaded", () => {
             // Safety timeout: sau estimatedMs + 10s, cố trigger download dù poll ra sao
             setTimeout(triggerFileDownload, estimatedMs + 10000);
         });
-
-
-
     }
 
     // Render Twitter Result
@@ -610,38 +607,31 @@ document.addEventListener("DOMContentLoaded", () => {
             const video = data.videos[0];
             const qualities = video.qualities || [];
             
-            let qualityOptionsHtml = qualities.map((q, idx) => `
-                <option value="${q.url}">${q.resolution || `Chất lượng ${idx+1}`}</option>
-            `).join("");
+            let qualityOptionsHtml = qualities.map((q, idx) =>
+                `<option value="${q.url}">${q.resolution || `Chất lượng ${idx+1}`}</option>`
+            ).join("");
 
             mediaHtml = `
                 <div class="media-container video-wrapper">
                     <video id="player-video" controls poster="${video.preview_url || ''}">
                         <source src="${video.download_url}" type="video/mp4">
-                        Trình duyệt của bạn không hỗ trợ thẻ video.
                     </video>
                 </div>
 
                 <div class="download-actions-card">
-                    <div class="actions-top">
-                        <div class="quality-select-wrapper">
-                            <label for="select-video-quality"><i class="fa-solid fa-sliders"></i> Độ phân giải:</label>
-                            <select id="select-video-quality" class="select-quality">
-                                ${qualityOptionsHtml}
-                            </select>
-                        </div>
-                        <div class="badge-info">
-                            <span class="tweet-badge"><i class="fa-solid fa-film"></i> Video MP4 Không Nén</span>
-                        </div>
+                    <div class="dl-meta-row">
+                        <span class="tweet-badge"><i class="fa-solid fa-film"></i> Video MP4 gốc · Không nén</span>
+                        ${qualities.length > 1 ? `
+                        <div class="quality-select-wrapper compact">
+                            <i class="fa-solid fa-sliders"></i>
+                            <select id="select-video-quality" class="select-quality">${qualityOptionsHtml}</select>
+                        </div>` : `<input type="hidden" id="select-video-quality" value="${video.download_url}">`}
                     </div>
-                    <div class="actions-buttons">
-                        <button id="btn-dl-video-server" class="btn btn-primary">
-                            <i class="fa-solid fa-download"></i> Lưu vào máy tính
-                        </button>
-                        <a id="btn-dl-video-browser" href="/api/stream-file?url=${encodeURIComponent(video.download_url)}&name=X_${data.author_username}_${data.tweet_id}&ext=mp4" class="btn btn-secondary" target="_blank">
-                            <i class="fa-solid fa-globe"></i> Tải qua trình duyệt
-                        </a>
-                    </div>
+                    <button id="btn-dl-video-server" class="btn btn-primary btn-full btn-glow">
+                        <i class="fa-solid fa-download"></i>
+                        <span>Tải Video về máy</span>
+                        <span class="btn-badge">MP4</span>
+                    </button>
                 </div>
             `;
         } else if (hasPhotos) {
@@ -650,7 +640,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
             let photoItems = data.photos.map((p, idx) => `
                 <div class="media-item" data-orig="${p.download_url}" data-preview="${p.preview_url}">
-                    <span class="media-badge-orig"><i class="fa-solid fa-expand"></i> Gốc :orig</span>
+                    <span class="media-badge-orig"><i class="fa-solid fa-expand"></i> :orig</span>
                     <img src="${p.preview_url}" alt="Photo ${idx+1}" loading="lazy">
                     <div class="media-overlay">
                         <div class="btn-preview-circle"><i class="fa-solid fa-magnifying-glass-plus"></i></div>
@@ -664,24 +654,29 @@ document.addEventListener("DOMContentLoaded", () => {
                 </div>
 
                 <div class="download-actions-card">
-                    <div class="actions-top">
-                        <span class="tweet-badge"><i class="fa-solid fa-images"></i> Tìm thấy ${count} ảnh gốc sắc nét</span>
+                    <div class="dl-meta-row">
+                        <span class="tweet-badge"><i class="fa-solid fa-images"></i> ${count} ảnh gốc chất lượng cao</span>
+                        <span class="tweet-badge badge-green"><i class="fa-solid fa-file-zipper"></i> Tải 1 file ZIP</span>
                     </div>
-                    <div class="actions-buttons">
-                        <button id="btn-dl-photos-server" class="btn btn-primary">
-                            <i class="fa-solid fa-cloud-arrow-down"></i> Tải tất cả (${count} ảnh) vào máy
-                        </button>
-                        ${count === 1 ? `
-                            <a href="/api/stream-file?url=${encodeURIComponent(data.photos[0].download_url)}&name=X_${data.author_username}_${data.tweet_id}&ext=jpg" class="btn btn-secondary" target="_blank">
-                                <i class="fa-solid fa-globe"></i> Tải trực tiếp qua trình duyệt
-                            </a>
-                        ` : ''}
-                    </div>
+                    ${count === 1 ? `
+                    <button id="btn-dl-photos-server" class="btn btn-primary btn-full btn-glow">
+                        <i class="fa-solid fa-image"></i>
+                        <span>Tải ảnh gốc :orig</span>
+                        <span class="btn-badge">JPG</span>
+                    </button>
+                    ` : `
+                    <button id="btn-dl-photos-server" class="btn btn-primary btn-full btn-glow">
+                        <i class="fa-solid fa-file-zipper"></i>
+                        <span>Tải tất cả ${count} ảnh · 1 phát</span>
+                        <span class="btn-badge">ZIP</span>
+                    </button>
+                    `}
                 </div>
             `;
         } else {
             mediaHtml = `<div class="p-4 text-center text-muted">Không tìm thấy ảnh hoặc video trong bài viết này.</div>`;
         }
+
 
         resultContainer.innerHTML = `
             <div class="result-card glass-panel luxury-border">
