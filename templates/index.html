@@ -139,7 +139,41 @@
             </div>
         </main>
 
+        <!-- Download Progress Active Modal -->
+        <div id="download-progress-modal" class="modal-backdrop hidden">
+            <div class="modal-card glass-panel progress-card">
+                <div class="progress-header">
+                    <div class="progress-icon-pulse">
+                        <i class="fa-solid fa-cloud-arrow-down fa-bounce"></i>
+                    </div>
+                    <div class="progress-title-meta">
+                        <h3 id="progress-file-title">Đang chuẩn bị tải tệp...</h3>
+                        <p id="progress-status-desc" class="modal-subtitle">Đang kết nối đến máy chủ YouTube...</p>
+                    </div>
+                </div>
+
+                <div class="progress-track-wrapper">
+                    <div class="progress-bar-animated">
+                        <div class="progress-bar-fill"></div>
+                    </div>
+                    <div class="progress-steps-row">
+                        <div class="p-step active" id="pstep-1"><i class="fa-solid fa-link"></i> 1. Kết nối</div>
+                        <div class="p-step" id="pstep-2"><i class="fa-solid fa-gears"></i> 2. Chuyển đổi</div>
+                        <div class="p-step" id="pstep-3"><i class="fa-solid fa-download"></i> 3. Nhận tệp</div>
+                    </div>
+                </div>
+
+                <div class="progress-footer">
+                    <p class="progress-hint"><i class="fa-solid fa-circle-info"></i> Tệp sẽ tự động lưu vào mục <strong>Downloads / Tệp đã tải về</strong> trên máy của bạn.</p>
+                    <button id="btn-close-progress" class="btn btn-sm btn-secondary">
+                        <i class="fa-solid fa-check"></i> Đã hiểu
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <!-- Settings Modal (Tùy Chỉnh Tối Ưu) -->
+
         <div id="settings-modal" class="modal-backdrop hidden">
             <div class="modal-card glass-panel settings-card">
                 <div class="modal-header">

@@ -398,13 +398,48 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         // Server / Device Download Click Handler
+        const downloadProgressModal = document.getElementById("download-progress-modal");
+        const progressFileTitle = document.getElementById("progress-file-title");
+        const progressStatusDesc = document.getElementById("progress-status-desc");
+        const pstep1 = document.getElementById("pstep-1");
+        const pstep2 = document.getElementById("pstep-2");
+        const pstep3 = document.getElementById("pstep-3");
+        const btnCloseProgress = document.getElementById("btn-close-progress");
+
+        if (btnCloseProgress) {
+            btnCloseProgress.addEventListener("click", () => {
+                downloadProgressModal.classList.add("hidden");
+            });
+        }
+        if (downloadProgressModal) {
+            downloadProgressModal.addEventListener("click", (e) => {
+                if (e.target === downloadProgressModal) downloadProgressModal.classList.add("hidden");
+            });
+        }
+
         btnServer.addEventListener("click", () => {
             const q = selectQuality.value;
             const dlUrl = `/api/stream-youtube?url=${encodeURIComponent(data.url)}&type=${selectedYtMode}&quality=${encodeURIComponent(q)}&title=${encodeURIComponent(data.title)}`;
             
-            showToast(`Đang bắt đầu tải ${selectedYtMode.toUpperCase()} về máy...`, "info", 4000);
-            
-            // Tạo liên kết ẩn để kích hoạt trình tải xuống của trình duyệt/điện thoại ngay lập tức
+            // Mở Progress Modal
+            if (progressFileTitle) progressFileTitle.innerText = data.title;
+            if (progressStatusDesc) progressStatusDesc.innerText = `Đang kết nối & chuyển đổi sang ${selectedYtMode.toUpperCase()}...`;
+            if (pstep1) pstep1.classList.add("active");
+            if (pstep2) pstep2.classList.remove("active");
+            if (pstep3) pstep3.classList.remove("active");
+            if (downloadProgressModal) downloadProgressModal.classList.remove("hidden");
+
+            setTimeout(() => {
+                if (pstep2) pstep2.classList.add("active");
+                if (progressStatusDesc) progressStatusDesc.innerText = `Đang xuất tệp ${selectedYtMode.toUpperCase()} chất lượng cao...`;
+            }, 1500);
+
+            setTimeout(() => {
+                if (pstep3) pstep3.classList.add("active");
+                if (progressStatusDesc) progressStatusDesc.innerText = `Đang chuyển tệp về máy của bạn...`;
+            }, 3500);
+
+            // Kích hoạt trình tải của trình duyệt
             const a = document.createElement("a");
             a.href = dlUrl;
             a.download = `${data.title}.${selectedYtMode}`;
@@ -412,6 +447,7 @@ document.addEventListener("DOMContentLoaded", () => {
             a.click();
             document.body.removeChild(a);
         });
+
 
     }
 
