@@ -247,8 +247,7 @@ def format_duration(seconds: int) -> str:
     return f"{m}:{s:02d}"
 
 def get_yt_opts(extra_opts=None):
-    """Tạo cấu hình yt-dlp tối ưu vượt qua bot-check của YouTube."""
-    # Kiểm tra cookies từ biến môi trường (cho Render/Cloud) hoặc file cookies.txt cục bộ
+    """Tạo cấu hình yt-dlp tối ưu vượt qua bot-check của YouTube (kể cả trên IP Datacenter Render)."""
     cookies_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.txt")
     cookies_env = os.environ.get("YOUTUBE_COOKIES") or os.environ.get("COOKIES")
     if cookies_env and not os.path.exists(cookies_file):
@@ -263,7 +262,7 @@ def get_yt_opts(extra_opts=None):
         'no_warnings': True,
         'extractor_args': {
             'youtube': {
-                'player_client': ['android', 'ios', 'mweb', 'web_creator'],
+                'player_client': ['tv_embedded', 'android_vr', 'android'],
                 'player_skip': ['webpage', 'configs']
             }
         },
@@ -278,6 +277,7 @@ def get_yt_opts(extra_opts=None):
     if extra_opts:
         opts.update(extra_opts)
     return opts
+
 
 
 def extract_youtube_media(url: str) -> dict:
