@@ -427,11 +427,10 @@ document.addEventListener("DOMContentLoaded", () => {
             });
         }
 
-        btnServer.addEventListener("click", () => {
+        btnServer.addEventListener("click", async () => {
             const q = selectQuality.value;
             const taskId = `dl_${Date.now()}`;
-            const dlUrl = `/api/stream-youtube?url=${encodeURIComponent(data.url)}&type=${selectedYtMode}&quality=${encodeURIComponent(q)}&title=${encodeURIComponent(data.title)}&task_id=${taskId}`;
-            
+
             // Reset Progress State
             if (progressFileTitle) progressFileTitle.innerText = data.title;
             if (progressStatusDesc) progressStatusDesc.innerText = `Đang kết nối đến YouTube...`;
@@ -439,21 +438,32 @@ document.addEventListener("DOMContentLoaded", () => {
             if (progressBarFill) progressBarFill.style.width = `0%`;
             if (progressSizeStats) progressSizeStats.innerHTML = `<i class="fa-solid fa-database"></i> Đang phân tích...`;
             if (progressSpeedStats) progressSpeedStats.innerHTML = `<i class="fa-solid fa-gauge-high"></i> Đang kết nối...`;
-            
+
             if (pstep1) pstep1.classList.add("active");
             if (pstep2) pstep2.classList.remove("active");
             if (pstep3) pstep3.classList.remove("active");
             if (downloadProgressModal) downloadProgressModal.classList.remove("hidden");
 
-            // ─── Hybrid: real poll + smooth animation fallback ─────────────────
-            if (progressInterval) clearInterval(progressInterval);
+            // ── Phase 1: Khởi động background download ─────────────────────────
+            const startUrl = `/api/start-download?url=${encodeURIComponent(data.url)}&type=${selectedYtMode}&quality=${encodeURIComponent(q)}&title=${encodeURIComponent(data.title)}&task_id=${taskId}`;
+            try {
+                const startResp = await fetch(startUrl);
+                const startJson = await safeJson(startResp);
+                if (!startJson.success) {
+                    if (progressStatusDesc) progressStatusDesc.innerText = `Lỗi: ${startJson.error}`;
+                    return;
+                }
+            } catch (e) {
+                if (progressStatusDesc) progressStatusDesc.innerText = `Không thể kết nối đến máy chủ.`;
+                return;
+            }
 
-            // Thời gian ước tính (ms): MP3 ~15s, MP4 ~40s
-            const estimatedMs = selectedYtMode === "mp3" ? 15000 : 40000;
+            // ── Phase 2: Poll tiến trình + smooth animation fallback ────────────
+            if (progressInterval) clearInterval(progressInterval);
+            const estimatedMs = selectedYtMode === "mp3" ? 18000 : 45000;
             const startTime = Date.now();
             let gotRealProgress = false;
-            let fakePercent = 0;
-            let pollErrors = 0;
+            let downloadTriggered = false;
 
             const setUI = (pct, statusText, speed, size) => {
                 const rounded = Math.min(Math.round(pct), 99);
@@ -464,14 +474,40 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (progressSizeStats && size) progressSizeStats.innerHTML = size;
             };
 
-            progressInterval = setInterval(async () => {
-                // --- Real polling attempt ---
-                try {
-                    const resp = await fetch(`/api/progress/${taskId}`, { signal: AbortSignal.timeout(2000) });
-                    const info = await safeJson(resp);
-                    pollErrors = 0;
+            const triggerFileDownload = () => {
+                if (downloadTriggered) return;
+                downloadTriggered = true;
+                clearInterval(progressInterval);
 
-                    if (info && info.status === "downloading" && info.percent > 12) {
+                if (progressPercentBadge) progressPercentBadge.innerText = `100%`;
+                if (progressBarFill) progressBarFill.style.width = `100%`;
+                if (progressStatusDesc) progressStatusDesc.innerText = `Hoàn tất! Đang gửi tệp về máy...`;
+                if (progressSpeedStats) progressSpeedStats.innerHTML = `<i class="fa-solid fa-circle-check"></i> Hoàn tất`;
+                if (pstep1) pstep1.classList.add("active");
+                if (pstep2) pstep2.classList.add("active");
+                if (pstep3) pstep3.classList.add("active");
+
+                // Trigger browser download
+                const ext = selectedYtMode === "mp3" ? "mp3" : "mp4";
+                const dlUrl = `/api/stream-youtube?task_id=${taskId}`;
+                const a = document.createElement("a");
+                a.href = dlUrl;
+                a.download = `${data.title}.${ext}`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            };
+
+            progressInterval = setInterval(async () => {
+                // Real poll
+                try {
+                    const ctrl = new AbortController();
+                    const t = setTimeout(() => ctrl.abort(), 2500);
+                    const resp = await fetch(`/api/progress/${taskId}`, { signal: ctrl.signal });
+                    clearTimeout(t);
+                    const info = await safeJson(resp);
+
+                    if (info && info.status === "downloading" && info.percent > 10) {
                         gotRealProgress = true;
                         const pct = info.percent;
                         setUI(pct,
@@ -482,85 +518,54 @@ document.addEventListener("DOMContentLoaded", () => {
                         if (pstep2) pstep2.classList.remove("active");
                     } else if (info && info.status === "converting") {
                         gotRealProgress = true;
-                        setUI(98, `Đang đóng gói ${selectedYtMode.toUpperCase()}...`,
+                        setUI(97, `Đang đóng gói ${selectedYtMode.toUpperCase()}...`,
                             `<i class="fa-solid fa-gears fa-spin"></i> Đang nén`,
                             `<i class="fa-solid fa-database"></i> Gần xong...`
                         );
-                        if (pstep1) pstep1.classList.add("active");
                         if (pstep2) pstep2.classList.add("active");
                     } else if (info && info.status === "completed") {
-                        gotRealProgress = true;
-                        setUI(100, `Đã hoàn tất! Đang lưu về máy...`,
-                            `<i class="fa-solid fa-circle-check"></i> Hoàn tất`,
-                            `<i class="fa-solid fa-database"></i> 100%`
-                        );
-                        if (progressPercentBadge) progressPercentBadge.innerText = `100%`;
-                        if (progressBarFill) progressBarFill.style.width = `100%`;
-                        if (pstep1) pstep1.classList.add("active");
-                        if (pstep2) pstep2.classList.add("active");
-                        if (pstep3) pstep3.classList.add("active");
+                        triggerFileDownload();
+                        return;
+                    } else if (info && info.status === "error") {
                         clearInterval(progressInterval);
+                        if (progressStatusDesc) progressStatusDesc.innerText = `Lỗi: ${info.eta || 'Không thể tải'}`;
                         return;
                     }
-                } catch (e) {
-                    pollErrors++;
-                }
+                } catch (_) {}
 
-                // --- Smooth animation fallback (luôn chạy song song) ---
-                if (!gotRealProgress) {
+                // Smooth animation fallback
+                if (!gotRealProgress && !downloadTriggered) {
                     const elapsed = Date.now() - startTime;
-                    // Easing: nhanh ban đầu, chậm dần khi gần 90%
                     const rawRatio = Math.min(elapsed / estimatedMs, 0.95);
-                    fakePercent = rawRatio < 0.5
-                        ? 3 + rawRatio * 2 * 75          // 3% → 75% trong nửa đầu
-                        : 75 + (rawRatio - 0.5) * 2 * 15; // 75% → 90% trong nửa sau
-                    fakePercent = Math.min(fakePercent, 90);
-
-                    const elapsedSec = Math.round(elapsed / 1000);
+                    let fakePct = rawRatio < 0.5
+                        ? 3 + rawRatio * 2 * 72
+                        : 75 + (rawRatio - 0.5) * 2 * 15;
+                    fakePct = Math.min(fakePct, 90);
                     const remainSec = Math.max(0, Math.round((estimatedMs - elapsed) / 1000));
 
                     let stepText = `Đang xử lý... (~${remainSec}s còn lại)`;
                     let speedHtml = `<i class="fa-solid fa-spinner fa-spin"></i> Đang tải dữ liệu`;
-                    let sizeHtml = `<i class="fa-solid fa-database"></i> Đã qua ${elapsedSec}s...`;
+                    let sizeHtml = `<i class="fa-solid fa-database"></i> Đang chuẩn bị...`;
 
-                    if (fakePercent >= 15 && fakePercent < 60) {
+                    if (fakePct >= 15 && fakePct < 60) {
                         stepText = `Đang tải âm thanh/video từ YouTube...`;
                         speedHtml = `<i class="fa-solid fa-gauge-high"></i> Đang tải`;
-                    } else if (fakePercent >= 60 && fakePercent < 85) {
+                    } else if (fakePct >= 60 && fakePct < 85) {
                         stepText = `Đang chuyển đổi sang ${selectedYtMode.toUpperCase()}...`;
                         speedHtml = `<i class="fa-solid fa-gears fa-spin"></i> Đang nén`;
                         if (pstep2) pstep2.classList.add("active");
-                    } else if (fakePercent >= 85) {
-                        stepText = `Sắp xong rồi! Đang đóng gói tệp...`;
+                    } else if (fakePct >= 85) {
+                        stepText = `Sắp xong! Đang đóng gói tệp...`;
                         speedHtml = `<i class="fa-solid fa-gears fa-spin"></i> Hoàn tất nén`;
                         if (pstep2) pstep2.classList.add("active");
                     }
 
-                    setUI(fakePercent, stepText, speedHtml, sizeHtml);
+                    setUI(fakePct, stepText, speedHtml, sizeHtml);
                 }
-            }, 500);
+            }, 600);
 
-            // Kích hoạt trình tải của trình duyệt
-            const ext = selectedYtMode === "mp3" ? "mp3" : "mp4";
-            const a = document.createElement("a");
-            a.href = dlUrl;
-            a.download = `${data.title}.${ext}`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-
-            // Khi file về máy (browser nhận được response cuối), nhảy 100%
-            // Dùng fetch HEAD để detect, hoặc sau timeout ước tính
-            setTimeout(() => {
-                if (progressInterval) clearInterval(progressInterval);
-                if (progressPercentBadge) progressPercentBadge.innerText = `100%`;
-                if (progressBarFill) progressBarFill.style.width = `100%`;
-                if (progressStatusDesc) progressStatusDesc.innerText = `Đã hoàn tất! Kiểm tra thư mục Downloads.`;
-                if (progressSpeedStats) progressSpeedStats.innerHTML = `<i class="fa-solid fa-circle-check"></i> Hoàn tất`;
-                if (pstep1) pstep1.classList.add("active");
-                if (pstep2) pstep2.classList.add("active");
-                if (pstep3) pstep3.classList.add("active");
-            }, estimatedMs + 8000); // buffer 8s sau thời gian ước tính
+            // Safety timeout: sau estimatedMs + 10s, cố trigger download dù poll ra sao
+            setTimeout(triggerFileDownload, estimatedMs + 10000);
         });
 
 

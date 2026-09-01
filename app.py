@@ -7,6 +7,8 @@ import webbrowser
 import threading
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify, send_file, Response, stream_with_context, after_this_request
+
+DOWNLOAD_THREADS = {}
 import requests
 from downloader import (
     extract_media, 
@@ -238,104 +240,125 @@ def api_get_progress(task_id):
         }
     return jsonify(info)
 
-@app.route("/api/stream-youtube")
-def api_stream_youtube():
-    """Tải và stream YouTube Video / MP3 về trình duyệt qua Flask kèm theo dõi % thời gian thực."""
+@app.route("/api/start-download")
+def api_start_download():
+    """Khởi chạy download yt-dlp trong background thread, trả task_id ngay lập tức."""
     yt_url = request.args.get("url")
     target_type = request.args.get("type", "mp3")
     quality = request.args.get("quality", "320")
     title = request.args.get("title", "youtube_media")
     task_id = request.args.get("task_id", "")
 
-    if not yt_url:
-        return "Thiếu URL YouTube", 400
+    if not yt_url or not task_id:
+        return jsonify({"success": False, "error": "Thiếu URL hoặc task_id"}), 400
 
     clean_title = "".join(c for c in title if c.isalnum() or c in (' ', '_', '-')).strip()[:40] or "youtube"
     timestamp = int(time.time())
     ext = "mp3" if target_type == "mp3" else "mp4"
-    temp_filename = f"temp_{clean_title}_{timestamp}.{ext}"
+    temp_filename = f"dl_{task_id}.{ext}"
     temp_path = os.path.join(DOWNLOADS_DIR, temp_filename)
 
-    def on_progress(d):
-        if not task_id:
-            return
-        if d.get('status') == 'downloading':
-            total = d.get('total_bytes') or d.get('total_bytes_estimate') or 0
-            downloaded = d.get('downloaded_bytes', 0)
-            percent = int(downloaded / total * 100) if total > 0 else 15
-            speed = d.get('speed') or 0
-            speed_str = f"{speed / (1024*1024):.1f} MB/s" if speed else "N/A"
-            eta = d.get('eta') or 0
-            eta_str = f"{eta}s" if eta else "Đang tính..."
-            write_progress(task_id, {
-                "status": "downloading",
-                "percent": min(max(percent, 12), 95),
-                "speed": speed_str,
-                "downloaded": f"{downloaded / (1024*1024):.1f} MB",
-                "total": f"{total / (1024*1024):.1f} MB" if total else "N/A",
-                "eta": eta_str
-            })
-        elif d.get('status') == 'finished':
-            write_progress(task_id, {
-                "status": "converting",
-                "percent": 98,
-                "speed": "Đang nén",
-                "downloaded": "Hoàn tất tải",
-                "total": "Đóng gói tệp",
-                "eta": "1s"
-            })
+    write_progress(task_id, {
+        "status": "started", "percent": 8,
+        "speed": "Đang kết nối", "downloaded": "0 MB",
+        "total": "Đang phân tích", "eta": "..."
+    })
 
-    try:
-        if task_id:
+    def run_download():
+        def on_progress(d):
+            if d.get('status') == 'downloading':
+                total = d.get('total_bytes') or d.get('total_bytes_estimate') or 0
+                downloaded = d.get('downloaded_bytes', 0)
+                percent = int(downloaded / total * 100) if total > 0 else 15
+                speed = d.get('speed') or 0
+                speed_str = f"{speed / (1024*1024):.1f} MB/s" if speed else "N/A"
+                eta = d.get('eta') or 0
+                write_progress(task_id, {
+                    "status": "downloading",
+                    "percent": min(max(percent, 10), 94),
+                    "speed": speed_str,
+                    "downloaded": f"{downloaded / (1024*1024):.1f} MB",
+                    "total": f"{total / (1024*1024):.1f} MB" if total else "N/A",
+                    "eta": f"{eta}s" if eta else "Đang tính..."
+                })
+            elif d.get('status') == 'finished':
+                write_progress(task_id, {
+                    "status": "converting", "percent": 97,
+                    "speed": "Đang nén", "downloaded": "Hoàn tất",
+                    "total": "Đóng gói", "eta": "1s"
+                })
+        try:
+            final_path = download_youtube_file(yt_url, target_type, quality, temp_path, progress_callback=on_progress)
+            DOWNLOAD_THREADS[task_id] = {"status": "ready", "path": final_path, "ext": ext, "title": clean_title}
             write_progress(task_id, {
-                "status": "started",
-                "percent": 10,
-                "speed": "Đang kết nối",
-                "downloaded": "0 MB",
-                "total": "Đang phân tích",
-                "eta": "..."
+                "status": "completed", "percent": 100,
+                "speed": "Hoàn tất", "downloaded": "100%",
+                "total": "Sẵn sàng", "eta": "0s"
             })
-
-        final_path = download_youtube_file(yt_url, target_type, quality, temp_path, progress_callback=on_progress)
-        
-        if task_id:
+        except Exception as e:
+            DOWNLOAD_THREADS[task_id] = {"status": "error", "error": str(e)}
             write_progress(task_id, {
-                "status": "completed",
-                "percent": 100,
-                "speed": "Hoàn tất",
-                "downloaded": "100%",
-                "total": "Sẵn sàng",
-                "eta": "0s"
+                "status": "error", "percent": 0,
+                "speed": "Lỗi", "downloaded": "0 MB",
+                "total": "0 MB", "eta": str(e)
             })
 
-        @after_this_request
-        def remove_temp(response):
-            try:
-                clean_progress(task_id)
-                if os.path.exists(final_path):
-                    if os.environ.get("RENDER"):
-                        os.remove(final_path)
-            except Exception:
-                pass
-            return response
+    t = threading.Thread(target=run_download, daemon=True)
+    t.start()
+    return jsonify({"success": True, "task_id": task_id})
 
 
-        return send_file(
-            final_path,
-            as_attachment=True,
-            download_name=f"{clean_title}.{ext}"
-        )
-    except Exception as e:
-        if task_id:
-            write_progress(task_id, {
-                "status": "error",
-                "percent": 0,
-                "speed": "Lỗi",
-                "downloaded": "0 MB",
-                "total": "0 MB",
-                "eta": str(e)
-            })
-        return jsonify({"success": False, "error": f"Lỗi xử lý file: {str(e)}"}), 500
+@app.route("/api/stream-youtube")
+def api_stream_youtube():
+    """Gửi file đã tải xong về trình duyệt."""
+    task_id = request.args.get("task_id", "")
+    # Compat: nếu không có task_id, dùng luồng cũ (đồng bộ)
+    if not task_id:
+        yt_url = request.args.get("url")
+        target_type = request.args.get("type", "mp3")
+        quality = request.args.get("quality", "320")
+        title = request.args.get("title", "youtube_media")
+        clean_title = "".join(c for c in title if c.isalnum() or c in (' ', '_', '-')).strip()[:40] or "youtube"
+        ext = "mp3" if target_type == "mp3" else "mp4"
+        temp_path = os.path.join(DOWNLOADS_DIR, f"sync_{int(time.time())}.{ext}")
+        try:
+            final_path = download_youtube_file(yt_url, target_type, quality, temp_path)
+            return send_file(final_path, as_attachment=True, download_name=f"{clean_title}.{ext}")
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    info = DOWNLOAD_THREADS.get(task_id)
+    if not info:
+        # Chờ tối đa 5 phút (polling từ browser)
+        for _ in range(600):
+            time.sleep(0.5)
+            info = DOWNLOAD_THREADS.get(task_id)
+            if info:
+                break
+
+    if not info or info.get("status") == "error":
+        err = (info or {}).get("error", "Download chưa hoàn tất hoặc bị lỗi.")
+        return jsonify({"success": False, "error": err}), 500
+
+    final_path = info["path"]
+    ext = info["ext"]
+    clean_title = info["title"]
+
+    if not os.path.exists(final_path):
+        return jsonify({"success": False, "error": "File không tồn tại."}), 404
+
+    @after_this_request
+    def cleanup(response):
+        try:
+            clean_progress(task_id)
+            DOWNLOAD_THREADS.pop(task_id, None)
+            if os.environ.get("RENDER") and os.path.exists(final_path):
+                os.remove(final_path)
+        except Exception:
+            pass
+        return response
+
+    return send_file(final_path, as_attachment=True, download_name=f"{clean_title}.{ext}")
 
 
 
