@@ -12,6 +12,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const resultContainer = document.getElementById("result-container");
     const toastContainer = document.getElementById("toast-container");
     
+    const tabBtns = document.querySelectorAll(".tab-btn");
     const btnOpenFolder = document.getElementById("btn-open-folder");
     const btnToggleHistory = document.getElementById("btn-toggle-history");
     const historyModal = document.getElementById("history-modal");
@@ -24,7 +25,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const lightboxClose = document.getElementById("lightbox-close");
     const lightboxDownloadBtn = document.getElementById("lightbox-download-btn");
 
-    let currentTweetData = null;
+    let currentMediaData = null;
+    let selectedYtMode = "mp3"; // "mp3" hoặc "video"
 
     // Toast Notification System
     function showToast(message, type = "info", duration = 3500) {
@@ -48,14 +50,48 @@ document.addEventListener("DOMContentLoaded", () => {
         }, duration);
     }
 
-    // Input handlers
+    // Tab Switching
+    tabBtns.forEach(btn => {
+        btn.addEventListener("click", () => {
+            tabBtns.forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+            const platform = btn.dataset.platform;
+            if (platform === "youtube") {
+                inputUrl.placeholder = "Dán link YouTube / Shorts vào đây... vd: https://youtu.be/...";
+            } else if (platform === "twitter") {
+                inputUrl.placeholder = "Dán link X (Twitter) vào đây... vd: https://x.com/user/status/...";
+            } else {
+                inputUrl.placeholder = "Dán link X (Twitter) hoặc YouTube / Shorts vào đây...";
+            }
+            inputUrl.focus();
+        });
+    });
+
+    // Auto-switch tab based on typed/pasted URL
     inputUrl.addEventListener("input", () => {
-        if (inputUrl.value.trim().length > 0) {
+        const val = inputUrl.value.trim().toLowerCase();
+        if (val.length > 0) {
             btnClear.classList.remove("hidden");
         } else {
             btnClear.classList.add("hidden");
         }
+
+        if (val.includes("youtube.com") || val.includes("youtu.be")) {
+            switchActiveTab("youtube");
+        } else if (val.includes("twitter.com") || val.includes("x.com") || val.includes("vxtwitter.com")) {
+            switchActiveTab("twitter");
+        }
     });
+
+    function switchActiveTab(platform) {
+        tabBtns.forEach(btn => {
+            if (btn.dataset.platform === platform) {
+                btn.classList.add("active");
+            } else {
+                btn.classList.remove("active");
+            }
+        });
+    }
 
     btnClear.addEventListener("click", () => {
         inputUrl.value = "";
@@ -69,7 +105,15 @@ document.addEventListener("DOMContentLoaded", () => {
             if (text) {
                 inputUrl.value = text.trim();
                 btnClear.classList.remove("hidden");
-                showToast("Đã dán liên kết từ bộ nhớ tạm!", "info", 2000);
+                showToast("Đã dán liên kết!", "info", 2000);
+                
+                const val = inputUrl.value.toLowerCase();
+                if (val.includes("youtube.com") || val.includes("youtu.be")) {
+                    switchActiveTab("youtube");
+                } else if (val.includes("twitter.com") || val.includes("x.com")) {
+                    switchActiveTab("twitter");
+                }
+
                 form.dispatchEvent(new Event("submit"));
             }
         } catch (err) {
@@ -83,7 +127,7 @@ document.addEventListener("DOMContentLoaded", () => {
         e.preventDefault();
         const url = inputUrl.value.trim();
         if (!url) {
-            showToast("Vui lòng nhập đường link bài viết X (Twitter)!", "error");
+            showToast("Vui lòng nhập đường link bài viết X hoặc video YouTube!", "error");
             return;
         }
 
@@ -103,12 +147,16 @@ document.addEventListener("DOMContentLoaded", () => {
             const res = await resp.json();
 
             if (!res.success) {
-                throw new Error(res.error || "Không thể trích xuất media từ bài viết này.");
+                throw new Error(res.error || "Không thể trích xuất dữ liệu từ liên kết này.");
             }
 
-            currentTweetData = res.data;
-            renderTweetResult(res.data);
-            showToast("Trích xuất dữ liệu thành công!", "success");
+            currentMediaData = res.data;
+            if (res.data.platform === "youtube") {
+                renderYouTubeResult(res.data);
+            } else {
+                renderTwitterResult(res.data);
+            }
+            showToast("Trích xuất thông tin thành công!", "success");
         } catch (err) {
             showToast(err.message, "error", 5000);
         } finally {
@@ -119,8 +167,160 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    // Render Tweet Result
-    function renderTweetResult(data) {
+    // Render YouTube Result
+    function renderYouTubeResult(data) {
+        selectedYtMode = "mp3"; // Default to MP3
+        const isEmbeddable = data.video_id;
+
+        resultContainer.innerHTML = `
+            <div class="result-card glass-panel">
+                <!-- Channel Info Header -->
+                <div class="tweet-author-header">
+                    <div class="author-profile">
+                        <div class="channel-avatar-icon">
+                            <i class="fa-brands fa-youtube"></i>
+                        </div>
+                        <div class="author-meta">
+                            <h4>${escapeHtml(data.uploader)} <i class="fa-solid fa-circle-check verified-icon"></i></h4>
+                            <span class="author-handle"><i class="fa-solid fa-eye"></i> ${data.view_count} lượt xem</span>
+                        </div>
+                    </div>
+                    <a href="${data.url}" target="_blank" class="btn btn-sm btn-secondary" title="Xem trên YouTube">
+                        <i class="fa-brands fa-youtube"></i> Mở YouTube
+                    </a>
+                </div>
+
+                <!-- Video Title -->
+                <p class="tweet-text" style="font-weight: 700; font-size: 16px;">${escapeHtml(data.title)}</p>
+
+                <!-- Media Preview -->
+                <div class="yt-media-preview">
+                    <img class="yt-thumbnail-img" src="${data.thumbnail}" alt="Thumbnail">
+                    <span class="yt-duration-badge"><i class="fa-solid fa-clock"></i> ${data.duration_str}</span>
+                </div>
+
+                <!-- Download & Conversion Actions Card -->
+                <div class="download-actions-card">
+                    <!-- Format Switcher -->
+                    <div class="format-switch-container">
+                        <button type="button" class="format-tab-btn active" data-mode="mp3">
+                            <i class="fa-solid fa-music"></i> Chuyển qua Âm Thanh MP3
+                        </button>
+                        <button type="button" class="format-tab-btn" data-mode="video">
+                            <i class="fa-solid fa-film"></i> Tải Video MP4
+                        </button>
+                    </div>
+
+                    <!-- Quality Selectors -->
+                    <div class="actions-top">
+                        <div class="quality-select-wrapper" id="yt-quality-box">
+                            <label for="select-yt-quality" id="yt-quality-label"><i class="fa-solid fa-sliders"></i> Chất lượng MP3:</label>
+                            <select id="select-yt-quality" class="select-quality">
+                                ${data.audio_qualities.map(a => `<option value="${a.id}">${a.label}</option>`).join("")}
+                            </select>
+                        </div>
+                        <div class="badge-info">
+                            <span id="yt-badge-display" class="tweet-badge mp3-badge"><i class="fa-solid fa-bolt"></i> Âm Thanh Chuẩn 320kbps</span>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="actions-buttons">
+                        <button id="btn-yt-download-server" class="btn btn-music">
+                            <i class="fa-solid fa-cloud-arrow-down"></i> <span id="txt-yt-server-btn">Lưu MP3 vào máy tính</span>
+                        </button>
+                        <a id="btn-yt-download-browser" href="/api/stream-youtube?url=${encodeURIComponent(data.url)}&type=mp3&quality=320&title=${encodeURIComponent(data.title)}" class="btn btn-secondary" target="_blank">
+                            <i class="fa-solid fa-globe"></i> <span id="txt-yt-browser-btn">Tải MP3 qua trình duyệt</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        resultContainer.classList.remove("hidden");
+        attachYouTubeEvents(data);
+    }
+
+    function attachYouTubeEvents(data) {
+        const formatTabs = resultContainer.querySelectorAll(".format-tab-btn");
+        const selectQuality = document.getElementById("select-yt-quality");
+        const qualityLabel = document.getElementById("yt-quality-label");
+        const badgeDisplay = document.getElementById("yt-badge-display");
+        const btnServer = document.getElementById("btn-yt-download-server");
+        const btnBrowser = document.getElementById("btn-yt-download-browser");
+        const txtServerBtn = document.getElementById("txt-yt-server-btn");
+        const txtBrowserBtn = document.getElementById("txt-yt-browser-btn");
+
+        // Format Switcher Handlers (MP3 vs Video)
+        formatTabs.forEach(tab => {
+            tab.addEventListener("click", () => {
+                formatTabs.forEach(t => t.classList.remove("active"));
+                tab.classList.add("active");
+                selectedYtMode = tab.dataset.mode;
+
+                if (selectedYtMode === "mp3") {
+                    qualityLabel.innerHTML = `<i class="fa-solid fa-sliders"></i> Chất lượng MP3:`;
+                    selectQuality.innerHTML = data.audio_qualities.map(a => `<option value="${a.id}">${a.label}</option>`).join("");
+                    badgeDisplay.className = "tweet-badge mp3-badge";
+                    badgeDisplay.innerHTML = `<i class="fa-solid fa-music"></i> Âm Thanh Chuẩn 320kbps`;
+                    btnServer.className = "btn btn-music";
+                    txtServerBtn.innerText = "Lưu MP3 vào máy tính";
+                    txtBrowserBtn.innerText = "Tải MP3 qua trình duyệt";
+                } else {
+                    qualityLabel.innerHTML = `<i class="fa-solid fa-sliders"></i> Độ phân giải Video:`;
+                    selectQuality.innerHTML = data.video_qualities.map(v => `<option value="${v.id}">${v.label}</option>`).join("");
+                    badgeDisplay.className = "tweet-badge yt-badge";
+                    badgeDisplay.innerHTML = `<i class="fa-solid fa-film"></i> Video MP4 Full HD`;
+                    btnServer.className = "btn btn-youtube";
+                    txtServerBtn.innerText = "Lưu Video vào máy tính";
+                    txtBrowserBtn.innerText = "Tải Video qua trình duyệt";
+                }
+                updateBrowserLink();
+            });
+        });
+
+        selectQuality.addEventListener("change", updateBrowserLink);
+
+        function updateBrowserLink() {
+            const q = selectQuality.value;
+            btnBrowser.href = `/api/stream-youtube?url=${encodeURIComponent(data.url)}&type=${selectedYtMode}&quality=${encodeURIComponent(q)}&title=${encodeURIComponent(data.title)}`;
+        }
+
+        // Server Download Click Handler
+        btnServer.addEventListener("click", async () => {
+            const q = selectQuality.value;
+            btnServer.disabled = true;
+            btnServer.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Đang tải & chuyển đổi...`;
+
+            try {
+                const resp = await fetch("/api/download-server", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        platform: "youtube",
+                        url: data.url,
+                        type: selectedYtMode,
+                        quality_id: q,
+                        title: data.title
+                    })
+                });
+                const res = await resp.json();
+                if (res.success) {
+                    showToast(`Đã lưu ${selectedYtMode.toUpperCase()} thành công vào thư mục Downloads!`, "success");
+                } else {
+                    showToast(res.error || "Lỗi khi tải.", "error");
+                }
+            } catch (err) {
+                showToast(err.message, "error");
+            } finally {
+                btnServer.disabled = false;
+                btnServer.innerHTML = `<i class="fa-solid fa-cloud-arrow-down"></i> <span id="txt-yt-server-btn">${selectedYtMode === 'mp3' ? 'Lưu MP3 vào máy tính' : 'Lưu Video vào máy tính'}</span>`;
+            }
+        });
+    }
+
+    // Render Twitter Result
+    function renderTwitterResult(data) {
         const hasPhotos = data.photos && data.photos.length > 0;
         const hasVideos = data.videos && data.videos.length > 0;
 
@@ -228,12 +428,10 @@ document.addEventListener("DOMContentLoaded", () => {
         `;
 
         resultContainer.classList.remove("hidden");
-        attachResultEvents(data);
+        attachTwitterEvents(data);
     }
 
-    // Attach Event Listeners to Result Card Elements
-    function attachResultEvents(data) {
-        // Image Lightbox Triggers
+    function attachTwitterEvents(data) {
         const mediaItems = resultContainer.querySelectorAll(".media-item");
         mediaItems.forEach(item => {
             item.addEventListener("click", () => {
@@ -244,7 +442,6 @@ document.addEventListener("DOMContentLoaded", () => {
             });
         });
 
-        // Video Quality Switcher
         const selectQuality = document.getElementById("select-video-quality");
         const videoPlayer = document.getElementById("player-video");
         const btnDlVideoBrowser = document.getElementById("btn-dl-video-browser");
@@ -263,7 +460,6 @@ document.addEventListener("DOMContentLoaded", () => {
             });
         }
 
-        // Download Video To Server
         const btnDlVideoServer = document.getElementById("btn-dl-video-server");
         if (btnDlVideoServer) {
             btnDlVideoServer.addEventListener("click", async () => {
@@ -276,6 +472,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
+                            platform: "twitter",
                             items: [{ url: targetUrl, type: "video" }],
                             tweet_id: data.tweet_id,
                             author: data.author_username
@@ -296,7 +493,6 @@ document.addEventListener("DOMContentLoaded", () => {
             });
         }
 
-        // Download Photos To Server
         const btnDlPhotosServer = document.getElementById("btn-dl-photos-server");
         if (btnDlPhotosServer) {
             btnDlPhotosServer.addEventListener("click", async () => {
@@ -309,6 +505,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
+                            platform: "twitter",
                             items: items,
                             tweet_id: data.tweet_id,
                             author: data.author_username
@@ -338,7 +535,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (res.success) {
                 showToast("Đang mở thư mục lưu trữ...", "info");
             } else {
-                showToast("Không thể mở thư mục: " + res.error, "error");
+                showToast(res.error || "Không thể mở thư mục.", "error");
             }
         } catch (err) {
             showToast("Lỗi mở thư mục.", "error");
@@ -385,8 +582,8 @@ document.addEventListener("DOMContentLoaded", () => {
             historyList.innerHTML = history.map(item => `
                 <div class="history-item">
                     <div class="history-meta">
-                        <h5>@${escapeHtml(item.author || 'User')} - ID: ${item.tweet_id}</h5>
-                        <p>${item.count} tệp • ${item.downloaded_at}</p>
+                        <h5>${escapeHtml(item.title || item.author || 'Tệp')} (${(item.platform || 'Media').toUpperCase()})</h5>
+                        <p>${item.type ? item.type.toUpperCase() : item.count + ' tệp'} • ${item.downloaded_at}</p>
                     </div>
                     <button class="btn btn-sm btn-secondary" onclick="openExplorer()">
                         <i class="fa-solid fa-folder"></i> Xem
@@ -419,11 +616,8 @@ document.addEventListener("DOMContentLoaded", () => {
     function formatTweetText(text) {
         if (!text) return "";
         let escaped = escapeHtml(text);
-        // Hashtags
         escaped = escaped.replace(/(#[a-zA-Z0-9_\u00c0-\u1ef9]+)/g, '<span style="color: #60a5fa;">$1</span>');
-        // Mentions
         escaped = escaped.replace(/(@[a-zA-Z0-9_]+)/g, '<span style="color: #a78bfa;">$1</span>');
-        // Links
         escaped = escaped.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" style="color: #38bdf8; text-decoration: underline;">$1</a>');
         return escaped;
     }

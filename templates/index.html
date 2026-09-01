@@ -2,9 +2,9 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>X Media Downloader | Tải Ảnh & Video X Chất Lượng Cao</title>
-    <meta name="description" content="Tải ảnh gốc :orig và video độ phân giải cao nhất từ X (Twitter) cực nhanh, sắc nét, hoàn toàn miễn phí.">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <title>Universal Media Pro Saver | Tải X & YouTube MP4 / MP3</title>
+    <meta name="description" content="Tải ảnh gốc :orig, video 4K từ X (Twitter) và tải Video HD / Chuyển đổi MP3 320kbps từ YouTube cực nhanh và sắc nét.">
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -25,11 +25,11 @@
         <header class="app-header">
             <div class="brand">
                 <div class="brand-logo">
-                    <i class="fa-brands fa-x-twitter"></i>
+                    <i class="fa-solid fa-cloud-arrow-down"></i>
                 </div>
                 <div class="brand-info">
-                    <h1>X Media <span class="gradient-text">Pro Saver</span></h1>
-                    <p class="subtitle">Trích xuất ảnh gốc <strong>:orig</strong> & video <strong>Full HD / 4K</strong> không nén</p>
+                    <h1>Media <span class="gradient-text">Pro Saver</span></h1>
+                    <p class="subtitle">Tải <strong>X (Twitter)</strong> & <strong>YouTube (MP4 / MP3 320k)</strong> chất lượng cao</p>
                 </div>
             </div>
             
@@ -49,13 +49,29 @@
         <main class="main-content">
             <!-- Search & Input Card -->
             <section class="input-card glass-panel">
+                <!-- Platform Tabs -->
+                <div class="platform-tabs">
+                    <button class="tab-btn active" data-platform="all">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                        <span>Tự động nhận diện</span>
+                    </button>
+                    <button class="tab-btn" data-platform="twitter">
+                        <i class="fa-brands fa-x-twitter"></i>
+                        <span>X (Twitter)</span>
+                    </button>
+                    <button class="tab-btn" data-platform="youtube">
+                        <i class="fa-brands fa-youtube"></i>
+                        <span>YouTube & MP3</span>
+                    </button>
+                </div>
+
                 <form id="extract-form" class="search-form">
                     <div class="input-wrapper">
                         <i class="fa-solid fa-link input-icon"></i>
                         <input 
                             type="text" 
                             id="tweet-url-input" 
-                            placeholder="Dán liên kết bài viết X (Twitter) vào đây... vd: https://x.com/user/status/..." 
+                            placeholder="Dán link X (Twitter) hoặc YouTube / Shorts vào đây..." 
                             autocomplete="off"
                             spellcheck="false"
                             required
@@ -72,7 +88,7 @@
                     <button type="submit" id="btn-submit" class="btn btn-primary btn-glow">
                         <span class="btn-text">
                             <i class="fa-solid fa-bolt"></i>
-                            <span>Lấy Dữ Liệu</span>
+                            <span>Phân Tích</span>
                         </span>
                         <span class="btn-loader hidden">
                             <i class="fa-solid fa-circle-notch fa-spin"></i>
@@ -82,9 +98,9 @@
                 </form>
 
                 <div class="quick-hints">
-                    <span class="hint-item"><i class="fa-solid fa-check"></i> Ảnh độ phân giải gốc 100% (Original :orig)</span>
-                    <span class="hint-item"><i class="fa-solid fa-check"></i> Video 60fps MP4 bitrate cao nhất</span>
-                    <span class="hint-item"><i class="fa-solid fa-check"></i> Hỗ trợ bài viết nhiều ảnh (Multi-images)</span>
+                    <span class="hint-item"><i class="fa-solid fa-check"></i> Ảnh X gốc <strong>:orig</strong></span>
+                    <span class="hint-item"><i class="fa-solid fa-check"></i> Video 4K/1080p MP4</span>
+                    <span class="hint-item"><i class="fa-solid fa-music"></i> Chuyển đổi <strong>MP3 320kbps</strong> cực chuẩn</span>
                 </div>
             </section>
 
@@ -116,11 +132,11 @@
                 <div class="modal-header">
                     <div class="modal-title">
                         <i class="fa-solid fa-clock-rotate-left"></i>
-                        <h3>Lịch sử đã tải gần đây</h3>
+                        <h3>Lịch sử tải gần đây</h3>
                     </div>
                     <div class="modal-controls">
                         <button id="btn-clear-history" class="btn btn-sm btn-danger" title="Xóa toàn bộ lịch sử">
-                            <i class="fa-solid fa-trash-can"></i> Xóa lịch sử
+                            <i class="fa-solid fa-trash-can"></i> Xóa
                         </button>
                         <button id="btn-close-history" class="btn-close" title="Đóng">
                             <i class="fa-solid fa-xmark"></i>

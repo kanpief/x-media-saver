@@ -8,7 +8,14 @@ import threading
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify, send_file, Response, stream_with_context
 import requests
-from downloader import extract_tweet_media, download_file, optimize_image_url, HEADERS
+from downloader import (
+    extract_media, 
+    download_file, 
+    download_youtube_file, 
+    optimize_image_url, 
+    HEADERS,
+    detect_platform
+)
 
 app = Flask(__name__)
 
@@ -29,10 +36,9 @@ def load_history():
 
 def save_history_item(item):
     history = load_history()
-    # Tránh trùng lặp id nếu vừa thêm
     history = [h for h in history if h.get("id") != item.get("id")]
     history.insert(0, item)
-    history = history[:50]  # Giữ tối đa 50 mục gần nhất
+    history = history[:50]
     with open(HISTORY_FILE, "w", encoding="utf-8") as f:
         json.dump(history, f, ensure_ascii=False, indent=2)
 
@@ -45,18 +51,60 @@ def api_extract():
     data = request.get_json() or {}
     url = data.get("url", "").strip()
     if not url:
-        return jsonify({"success": False, "error": "Vui lòng nhập đường link bài viết X (Twitter)!"}), 400
+        return jsonify({"success": False, "error": "Vui lòng nhập đường link X (Twitter) hoặc YouTube!"}), 400
 
     try:
-        media_info = extract_tweet_media(url)
+        media_info = extract_media(url)
         return jsonify({"success": True, "data": media_info})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 400
 
 @app.route("/api/download-server", methods=["POST"])
 def api_download_server():
-    """Tải trực tiếp vào thư mục downloads trên máy tính."""
+    """Tải trực tiếp vào thư mục downloads trên máy chủ."""
     data = request.get_json() or {}
+    platform = data.get("platform", "twitter")
+    timestamp = int(time.time())
+
+    # 1. Xử lý tải YouTube (Video MP4 hoặc MP3)
+    if platform == "youtube":
+        yt_url = data.get("url")
+        target_type = data.get("type", "video") # 'video' hoặc 'mp3'
+        quality_id = data.get("quality_id", "best")
+        title = data.get("title", "YouTube_Media")
+        # Chuẩn hóa tên file
+        clean_title = "".join(c for c in title if c.isalnum() or c in (' ', '_', '-')).strip()[:40]
+        ext = "mp3" if target_type == "mp3" else "mp4"
+        filename = f"YT_{clean_title}_{timestamp}.{ext}"
+        filepath = os.path.join(DOWNLOADS_DIR, filename)
+
+        try:
+            final_path = download_youtube_file(yt_url, target_type, quality_id, filepath)
+            saved_file = {
+                "filename": os.path.basename(final_path),
+                "filepath": final_path,
+                "type": target_type,
+                "size_bytes": os.path.getsize(final_path) if os.path.exists(final_path) else 0
+            }
+            save_history_item({
+                "id": f"yt_{timestamp}",
+                "platform": "youtube",
+                "title": title,
+                "type": target_type,
+                "count": 1,
+                "files": [saved_file],
+                "downloaded_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            })
+            return jsonify({
+                "success": True,
+                "message": f"Đã tải và lưu {'Audio MP3' if target_type == 'mp3' else 'Video MP4'} thành công!",
+                "files": [saved_file],
+                "download_dir": DOWNLOADS_DIR
+            })
+        except Exception as e:
+            return jsonify({"success": False, "error": f"Lỗi tải YouTube: {str(e)}"}), 500
+
+    # 2. Xử lý tải X / Twitter
     items = data.get("items", [])
     tweet_id = data.get("tweet_id", "tweet")
     author = data.get("author", "unknown")
@@ -65,15 +113,12 @@ def api_download_server():
         return jsonify({"success": False, "error": "Không có tệp nào để tải!"}), 400
 
     saved_files = []
-    timestamp = int(time.time())
-
     for idx, item in enumerate(items):
         url = item.get("url")
         mtype = item.get("type", "file")
         if not url:
             continue
         
-        # Đặt tên tệp chuẩn hóa
         ext = "mp4" if mtype == "video" else ("gif" if mtype == "gif" else "jpg")
         if ".png" in url:
             ext = "png"
@@ -95,9 +140,9 @@ def api_download_server():
             print(f"Lỗi tải {url}: {e}")
 
     if saved_files:
-        # Lưu vào lịch sử
         save_history_item({
             "id": f"{tweet_id}_{timestamp}",
+            "platform": "twitter",
             "tweet_id": tweet_id,
             "author": author,
             "count": len(saved_files),
@@ -115,9 +160,9 @@ def api_download_server():
 
 @app.route("/api/stream-file")
 def api_stream_file():
-    """Chuyển tiếp luồng tải về trình duyệt để lưu về máy qua download manager của trình duyệt."""
+    """Chuyển tiếp luồng tải trực tiếp về trình duyệt."""
     file_url = request.args.get("url")
-    custom_name = request.args.get("name", "twitter_media")
+    custom_name = request.args.get("name", "media")
     ext = request.args.get("ext", "jpg")
 
     if not file_url:
@@ -132,6 +177,33 @@ def api_stream_file():
     )
     response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
     return response
+
+@app.route("/api/stream-youtube")
+def api_stream_youtube():
+    """Tải và stream YouTube Video / MP3 về trình duyệt qua Flask."""
+    yt_url = request.args.get("url")
+    target_type = request.args.get("type", "mp3")
+    quality = request.args.get("quality", "320")
+    title = request.args.get("title", "youtube_media")
+
+    if not yt_url:
+        return "Thiếu URL YouTube", 400
+
+    clean_title = "".join(c for c in title if c.isalnum() or c in (' ', '_', '-')).strip()[:40] or "youtube"
+    timestamp = int(time.time())
+    ext = "mp3" if target_type == "mp3" else "mp4"
+    temp_filename = f"temp_{clean_title}_{timestamp}.{ext}"
+    temp_path = os.path.join(DOWNLOADS_DIR, temp_filename)
+
+    try:
+        final_path = download_youtube_file(yt_url, target_type, quality, temp_path)
+        return send_file(
+            final_path,
+            as_attachment=True,
+            download_name=f"{clean_title}.{ext}"
+        )
+    except Exception as e:
+        return f"Lỗi xử lý file: {str(e)}", 500
 
 @app.route("/api/open-folder", methods=["POST"])
 def api_open_folder():
@@ -167,14 +239,12 @@ if __name__ == "__main__":
     is_render = os.environ.get("RENDER") is not None
 
     print("=" * 60)
-    print("  🚀 X/Twitter Media Downloader đang khởi chạy...")
+    print("  🚀 X & YouTube Media Pro Saver đang khởi chạy...")
     print(f"  🌐 Cổng lắng nghe (Port): {port}")
     print("  📁 Thư mục lưu mặc định:", DOWNLOADS_DIR)
     print("=" * 60)
     
-    # Tự động mở trình duyệt nếu chạy offline trên máy cá nhân
     if not is_render and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
         threading.Thread(target=open_browser, daemon=True).start()
 
     app.run(host="0.0.0.0", port=port, debug=not is_render)
-

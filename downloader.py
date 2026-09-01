@@ -6,27 +6,45 @@ import requests
 import yt_dlp
 from urllib.parse import urlparse, parse_qs
 
+# Tự động phát hiện vị trí FFmpeg
+FFMPEG_PATH = None
+try:
+    import imageio_ffmpeg
+    FFMPEG_PATH = imageio_ffmpeg.get_ffmpeg_exe()
+except Exception:
+    FFMPEG_PATH = "ffmpeg"
+
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
     "Accept": "*/*",
     "Accept-Language": "en-US,en;q=0.9,vi;q=0.8",
 }
 
+def detect_platform(url: str) -> str:
+    """Tự động nhận diện nền tảng từ URL (X/Twitter hoặc YouTube)."""
+    if not url:
+        return ""
+    url_lower = url.lower()
+    if any(k in url_lower for k in ["youtube.com", "youtu.be", "music.youtube.com"]):
+        return "youtube"
+    if any(k in url_lower for k in ["twitter.com", "x.com", "vxtwitter.com", "fxtwitter.com", "fixupx.com"]):
+        return "twitter"
+    return "unknown"
+
+# ==================== X / TWITTER EXTRACTOR ====================
+
 def extract_tweet_id(url: str) -> str:
     """Trích xuất Tweet ID từ các dạng link X / Twitter khác nhau."""
     if not url:
         return ""
-    # Các dạng: x.com/user/status/12345, twitter.com/i/web/status/12345, fixupx, vxtwitter, fxtwitter
     match = re.search(r'(?:twitter\.com|x\.com|vxtwitter\.com|fxtwitter\.com|fixupx\.com)/[^/]+/status/(\d+)', url)
     if match:
         return match.group(1)
     
-    # Dạng link rút gọn hoặc chỉ chứa /status/12345
     match_status = re.search(r'/status/(\d+)', url)
     if match_status:
         return match_status.group(1)
 
-    # Nếu người dùng chỉ dán trực tiếp ID
     if re.match(r'^\d+$', url.strip()):
         return url.strip()
     return ""
@@ -44,24 +62,14 @@ def optimize_image_url(img_url: str) -> str:
             return f"{parsed.scheme}://{parsed.netloc}{parsed.path}?format={fmt}&name=orig"
         
         path = parsed.path
-        # Xóa extension suffix như :large, :small, :medium
         path = re.sub(r':(large|medium|small|thumb|\d+x\d+)$', '', path)
         return f"{parsed.scheme}://{parsed.netloc}{path}:orig"
     
     return img_url
 
-def compute_syndication_token(tweet_id_str: str) -> str:
-    try:
-        tweet_id = int(tweet_id_str)
-        # Token formula fallback
-        return "5"
-    except Exception:
-        return "5"
-
 def extract_via_syndication(tweet_id: str) -> dict:
     """Lấy thông tin và media qua CDN Syndication API của Twitter."""
-    token = compute_syndication_token(tweet_id)
-    url = f"https://cdn.syndication.twimg.com/tweet-result?id={tweet_id}&token={token}"
+    url = f"https://cdn.syndication.twimg.com/tweet-result?id={tweet_id}&token=5"
     resp = requests.get(url, headers=HEADERS, timeout=10)
     if resp.status_code != 200:
         return None
@@ -74,7 +82,6 @@ def extract_via_syndication(tweet_id: str) -> dict:
     author_name = user.get("name", "X User")
     author_username = user.get("screen_name", "")
     author_avatar = user.get("profile_image_url_https", "")
-    # Thay avatar sang kích thước nét 400x400
     if author_avatar:
         author_avatar = author_avatar.replace("_normal.", "_400x400.")
     text = data.get("text", "")
@@ -83,7 +90,6 @@ def extract_via_syndication(tweet_id: str) -> dict:
     photos = []
     videos = []
 
-    # Xử lý Photos
     if "photos" in data and isinstance(data["photos"], list):
         for p in data["photos"]:
             raw_url = p.get("url", "")
@@ -97,7 +103,6 @@ def extract_via_syndication(tweet_id: str) -> dict:
                 "alt": p.get("altText", "")
             })
 
-    # Xử lý Video block
     if "video" in data:
         v_info = data["video"]
         variants = v_info.get("variants", [])
@@ -131,33 +136,9 @@ def extract_via_syndication(tweet_id: str) -> dict:
                 "qualities": quality_list,
             })
 
-    # Xử lý mediaDetails nếu photos/videos trống
-    if not photos and not videos and "mediaDetails" in data:
-        for media in data["mediaDetails"]:
-            mtype = media.get("type")
-            if mtype == "photo":
-                raw_url = media.get("media_url_https", "")
-                photos.append({
-                    "type": "image",
-                    "preview_url": raw_url,
-                    "download_url": optimize_image_url(raw_url),
-                })
-            elif mtype in ["video", "animated_gif"]:
-                v_info = media.get("video_info", {})
-                variants = v_info.get("variants", [])
-                mp4s = [v for v in variants if v.get("content_type") == "video/mp4"]
-                mp4s.sort(key=lambda x: x.get("bitrate", 0), reverse=True)
-                if mp4s:
-                    quality_list = [{"url": v.get("url"), "resolution": f"MP4 ({v.get('bitrate', 0)//1000}kbps)"} for v in mp4s]
-                    videos.append({
-                        "type": "video" if mtype == "video" else "gif",
-                        "preview_url": media.get("media_url_https", ""),
-                        "download_url": mp4s[0].get("url"),
-                        "qualities": quality_list
-                    })
-
     if photos or videos:
         return {
+            "platform": "twitter",
             "tweet_id": tweet_id,
             "author_name": author_name,
             "author_username": author_username,
@@ -171,7 +152,7 @@ def extract_via_syndication(tweet_id: str) -> dict:
     return None
 
 def extract_via_vxtwitter(tweet_id: str) -> dict:
-    """Trích xuất qua vxTwitter API (rất ổn định cho cả ảnh và video)."""
+    """Trích xuất qua vxTwitter API."""
     url = f"https://api.vxtwitter.com/Twitter/status/{tweet_id}"
     resp = requests.get(url, headers=HEADERS, timeout=8)
     if resp.status_code != 200:
@@ -214,24 +195,10 @@ def extract_via_vxtwitter(tweet_id: str) -> dict:
                     "download_url": raw_url,
                     "qualities": [{"url": raw_url, "resolution": "Bản gốc Full HD (Highest)"}]
                 })
-    elif "mediaURLs" in data and data["mediaURLs"]:
-        for raw_url in data["mediaURLs"]:
-            if ".mp4" in raw_url:
-                videos.append({
-                    "type": "video",
-                    "preview_url": "",
-                    "download_url": raw_url,
-                    "qualities": [{"url": raw_url, "resolution": "Bản gốc Full HD (Highest)"}]
-                })
-            else:
-                photos.append({
-                    "type": "image",
-                    "preview_url": raw_url,
-                    "download_url": optimize_image_url(raw_url)
-                })
 
     if photos or videos:
         return {
+            "platform": "twitter",
             "tweet_id": tweet_id,
             "author_name": author_name,
             "author_username": author_username,
@@ -244,90 +211,171 @@ def extract_via_vxtwitter(tweet_id: str) -> dict:
         }
     return None
 
-def extract_via_ytdlp(tweet_url: str) -> dict:
-    """Dự phòng cuối cùng qua yt-dlp."""
-    ydl_opts = {
-        'quiet': True,
-        'no_warnings': True,
-        'skip_download': True,
-    }
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        try:
-            info = ydl.extract_info(tweet_url, download=False)
-            if not info:
-                return None
-            
-            formats = info.get('formats', [])
-            mp4_formats = [f for f in formats if f.get('ext') == 'mp4' or f.get('vcodec') != 'none']
-            videos = []
-            
-            if mp4_formats:
-                mp4_formats.sort(key=lambda x: (x.get('height') or 0, x.get('tbr') or 0), reverse=True)
-                quality_list = []
-                for f in mp4_formats:
-                    res = f.get('format_note') or f"{f.get('height', 'HD')}p"
-                    quality_list.append({
-                        "url": f.get('url'),
-                        "resolution": f"MP4 - {res}"
-                    })
-                videos.append({
-                    "type": "video",
-                    "preview_url": info.get('thumbnail', ''),
-                    "download_url": mp4_formats[0].get('url'),
-                    "qualities": quality_list
-                })
-
-            if videos:
-                return {
-                    "tweet_id": info.get('id', ''),
-                    "author_name": info.get('uploader', 'X User'),
-                    "author_username": info.get('uploader_id', ''),
-                    "author_avatar": "",
-                    "text": info.get('description', info.get('title', '')),
-                    "created_at": info.get('upload_date', ''),
-                    "photos": [],
-                    "videos": videos,
-                    "source": "yt-dlp"
-                }
-        except Exception:
-            return None
-    return None
-
 def extract_tweet_media(url_or_id: str) -> dict:
-    """Hàm tổng hợp kiểm tra trích xuất media qua nhiều phương thức."""
+    """Trích xuất ảnh và video từ X/Twitter."""
     tweet_id = extract_tweet_id(url_or_id)
     if not tweet_id:
-        raise ValueError("Không tìm thấy Tweet ID hợp lệ trong liên kết. Vui lòng kiểm tra lại liên kết.")
+        raise ValueError("Không tìm thấy Tweet ID hợp lệ trong liên kết. Vui lòng kiểm tra lại liên kết X.")
 
-    # 1. Thử Syndication API
     try:
         data = extract_via_syndication(tweet_id)
         if data and (data["photos"] or data["videos"]):
             return data
     except Exception as e:
-        print(f"Syndication extraction error: {e}")
+        print(f"Syndication error: {e}")
 
-    # 2. Thử VxTwitter API
     try:
         data = extract_via_vxtwitter(tweet_id)
         if data and (data["photos"] or data["videos"]):
             return data
     except Exception as e:
-        print(f"VxTwitter extraction error: {e}")
-
-    # 3. Thử yt-dlp
-    try:
-        tweet_url = f"https://x.com/i/status/{tweet_id}"
-        data = extract_via_ytdlp(tweet_url)
-        if data and (data["photos"] or data["videos"]):
-            return data
-    except Exception as e:
-        print(f"yt-dlp extraction error: {e}")
+        print(f"VxTwitter error: {e}")
 
     raise ValueError("Không tìm thấy ảnh hoặc video trong bài viết này, hoặc bài viết đang ở chế độ riêng tư.")
 
+
+# ==================== YOUTUBE & MP3 EXTRACTOR ====================
+
+def format_duration(seconds: int) -> str:
+    """Format duration in seconds to mm:ss or hh:mm:ss."""
+    if not seconds:
+        return "0:00"
+    m, s = divmod(int(seconds), 60)
+    h, m = divmod(m, 60)
+    if h > 0:
+        return f"{h}:{m:02d}:{s:02d}"
+    return f"{m}:{s:02d}"
+
+def extract_youtube_media(url: str) -> dict:
+    """Trích xuất thông tin video YouTube, phân loại các định dạng Video MP4 & Audio MP3."""
+    ydl_opts = {
+        'quiet': True,
+        'no_warnings': True,
+        'skip_download': True,
+    }
+    if FFMPEG_PATH:
+        ydl_opts['ffmpeg_location'] = FFMPEG_PATH
+
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=False)
+        if not info:
+            raise ValueError("Không thể lấy thông tin video từ YouTube. Vui lòng kiểm tra lại liên kết.")
+
+        title = info.get('title', 'YouTube Video')
+        video_id = info.get('id', '')
+        uploader = info.get('uploader', 'YouTube Channel')
+        duration = info.get('duration', 0)
+        view_count = info.get('view_count', 0)
+        thumbnail = info.get('thumbnail', f"https://i.ytimg.com/vi/{video_id}/maxresdefault.jpg")
+
+        formats = info.get('formats', [])
+        
+        # Danh sách video chất lượng cao
+        video_qualities = [
+            {"id": "bestvideo+bestaudio/best", "label": "Full HD / 4K Tốt Nhất (MP4)", "format_id": "best", "ext": "mp4"},
+            {"id": "bestvideo[height<=1080]+bestaudio/best[height<=1080]", "label": "1080p Full HD (MP4)", "format_id": "1080p", "ext": "mp4"},
+            {"id": "bestvideo[height<=720]+bestaudio/best[height<=720]", "label": "720p HD (MP4)", "format_id": "720p", "ext": "mp4"},
+            {"id": "bestvideo[height<=480]+bestaudio/best[height<=480]", "label": "480p Tiết Kiệm (MP4)", "format_id": "480p", "ext": "mp4"},
+            {"id": "bestvideo[height<=360]+bestaudio/best[height<=360]", "label": "360p Nhẹ Nhất (MP4)", "format_id": "360p", "ext": "mp4"},
+        ]
+
+        # Danh sách audio MP3 chất lượng cao
+        audio_qualities = [
+            {"id": "320", "label": "Chất lượng cực cao (MP3 320kbps)", "bitrate": "320k", "ext": "mp3"},
+            {"id": "192", "label": "Chất lượng chuẩn Studio (MP3 192kbps)", "bitrate": "192k", "ext": "mp3"},
+            {"id": "128", "label": "Chất lượng tiêu chuẩn (MP3 128kbps)", "bitrate": "128k", "ext": "mp3"},
+        ]
+
+        # Tìm direct stream URL nếu có
+        direct_stream_url = None
+        for f in reversed(formats):
+            if f.get('vcodec') != 'none' and f.get('acodec') != 'none' and f.get('ext') == 'mp4':
+                direct_stream_url = f.get('url')
+                break
+
+        return {
+            "platform": "youtube",
+            "video_id": video_id,
+            "title": title,
+            "uploader": uploader,
+            "duration": duration,
+            "duration_str": format_duration(duration),
+            "view_count": f"{view_count:,}" if view_count else "N/A",
+            "thumbnail": thumbnail,
+            "video_qualities": video_qualities,
+            "audio_qualities": audio_qualities,
+            "direct_stream_url": direct_stream_url or thumbnail,
+            "url": url
+        }
+
+def download_youtube_file(url: str, target_type: str, quality_id: str, output_path: str) -> str:
+    """Tải và chuyển đổi YouTube video hoặc MP3 audio."""
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    
+    # Loại bỏ extension khỏi output_path vì yt-dlp sẽ tự động gán
+    base_output = os.path.splitext(output_path)[0]
+
+    ydl_opts = {
+        'outtmpl': f"{base_output}.%(ext)s",
+        'quiet': True,
+        'no_warnings': True,
+    }
+    if FFMPEG_PATH:
+        ydl_opts['ffmpeg_location'] = FFMPEG_PATH
+
+    if target_type == "mp3":
+        ydl_opts.update({
+            'format': 'bestaudio/best',
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': quality_id or '320',
+            }],
+        })
+    else:
+        # Video MP4
+        format_spec = quality_id or 'bestvideo+bestaudio/best'
+        ydl_opts.update({
+            'format': format_spec,
+            'merge_output_format': 'mp4',
+        })
+
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        ydl.download([url])
+
+    expected_file = f"{base_output}.mp3" if target_type == "mp3" else f"{base_output}.mp4"
+    if os.path.exists(expected_file):
+        return expected_file
+    
+    # Tìm file có base_output
+    for ext in [".mp4", ".mp3", ".m4a", ".webm", ".mkv"]:
+        p = f"{base_output}{ext}"
+        if os.path.exists(p):
+            return p
+
+    return output_path
+
+# ==================== MAIN DISPATCHER ====================
+
+def extract_media(url: str) -> dict:
+    """Tự động phân loại và trích xuất từ X/Twitter hoặc YouTube."""
+    platform = detect_platform(url)
+    if platform == "youtube":
+        return extract_youtube_media(url)
+    elif platform == "twitter":
+        return extract_tweet_media(url)
+    else:
+        # Thử X trước, sau đó YouTube
+        try:
+            return extract_tweet_media(url)
+        except Exception:
+            try:
+                return extract_youtube_media(url)
+            except Exception:
+                raise ValueError("Liên kết không được hỗ trợ. Vui lòng nhập link từ X (Twitter) hoặc YouTube!")
+
 def download_file(url: str, save_path: str, chunk_size: int = 65536) -> str:
-    """Tải một file từ URL và lưu vào đĩa theo chunk, kèm headers."""
+    """Tải một file từ URL trực tiếp và lưu vào đĩa."""
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     resp = requests.get(url, headers=HEADERS, stream=True, timeout=30)
     resp.raise_for_status()
