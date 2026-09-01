@@ -397,37 +397,22 @@ document.addEventListener("DOMContentLoaded", () => {
             btnBrowser.href = `/api/stream-youtube?url=${encodeURIComponent(data.url)}&type=${selectedYtMode}&quality=${encodeURIComponent(q)}&title=${encodeURIComponent(data.title)}`;
         }
 
-        // Server Download Click Handler
-        btnServer.addEventListener("click", async () => {
+        // Server / Device Download Click Handler
+        btnServer.addEventListener("click", () => {
             const q = selectQuality.value;
-            btnServer.disabled = true;
-            btnServer.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Đang tải & chuyển đổi...`;
-
-            try {
-                const resp = await fetch("/api/download-server", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        platform: "youtube",
-                        url: data.url,
-                        type: selectedYtMode,
-                        quality_id: q,
-                        title: data.title
-                    })
-                });
-                const res = await resp.json();
-                if (res.success) {
-                    showToast(`Đã lưu ${selectedYtMode.toUpperCase()} thành công vào thư mục Downloads!`, "success");
-                } else {
-                    showToast(res.error || "Lỗi khi tải.", "error");
-                }
-            } catch (err) {
-                showToast(err.message, "error");
-            } finally {
-                btnServer.disabled = false;
-                btnServer.innerHTML = `<i class="fa-solid fa-cloud-arrow-down"></i> <span id="txt-yt-server-btn">${selectedYtMode === 'mp3' ? 'Lưu MP3 vào máy tính' : 'Lưu Video vào máy tính'}</span>`;
-            }
+            const dlUrl = `/api/stream-youtube?url=${encodeURIComponent(data.url)}&type=${selectedYtMode}&quality=${encodeURIComponent(q)}&title=${encodeURIComponent(data.title)}`;
+            
+            showToast(`Đang bắt đầu tải ${selectedYtMode.toUpperCase()} về máy...`, "info", 4000);
+            
+            // Tạo liên kết ẩn để kích hoạt trình tải xuống của trình duyệt/điện thoại ngay lập tức
+            const a = document.createElement("a");
+            a.href = dlUrl;
+            a.download = `${data.title}.${selectedYtMode}`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
         });
+
     }
 
     // Render Twitter Result

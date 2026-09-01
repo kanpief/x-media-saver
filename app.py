@@ -6,7 +6,7 @@ import subprocess
 import webbrowser
 import threading
 from datetime import datetime
-from flask import Flask, render_template, request, jsonify, send_file, Response, stream_with_context
+from flask import Flask, render_template, request, jsonify, send_file, Response, stream_with_context, after_this_request
 import requests
 from downloader import (
     extract_media, 
@@ -210,6 +210,18 @@ def api_stream_youtube():
 
     try:
         final_path = download_youtube_file(yt_url, target_type, quality, temp_path)
+        
+        @after_this_request
+        def remove_temp(response):
+            try:
+                if os.path.exists(final_path):
+                    # Giữ lại nếu là máy tính cá nhân hoặc xóa nếu là server cloud
+                    if os.environ.get("RENDER"):
+                        os.remove(final_path)
+            except Exception:
+                pass
+            return response
+
         return send_file(
             final_path,
             as_attachment=True,
@@ -217,6 +229,7 @@ def api_stream_youtube():
         )
     except Exception as e:
         return f"Lỗi xử lý file: {str(e)}", 500
+
 
 @app.route("/api/save-cookies", methods=["POST"])
 def api_save_cookies():
