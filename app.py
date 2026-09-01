@@ -42,13 +42,25 @@ def save_history_item(item):
     with open(HISTORY_FILE, "w", encoding="utf-8") as f:
         json.dump(history, f, ensure_ascii=False, indent=2)
 
+@app.errorhandler(500)
+def handle_500(e):
+    return jsonify({"success": False, "error": "Lỗi máy chủ nội bộ. Vui lòng thử lại!"}), 500
+
+@app.errorhandler(404)
+def handle_404(e):
+    return jsonify({"success": False, "error": "Không tìm thấy đường dẫn yêu cầu."}), 404
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    return jsonify({"success": False, "error": str(e)}), 500
+
 @app.route("/")
 def index():
     return render_template("index.html")
 
 @app.route("/api/extract", methods=["POST"])
 def api_extract():
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
     url = data.get("url", "").strip()
     if not url:
         return jsonify({"success": False, "error": "Vui lòng nhập đường link X (Twitter) hoặc YouTube!"}), 400
@@ -58,6 +70,7 @@ def api_extract():
         return jsonify({"success": True, "data": media_info})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 400
+
 
 @app.route("/api/download-server", methods=["POST"])
 def api_download_server():

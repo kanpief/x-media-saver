@@ -85,12 +85,13 @@ document.addEventListener("DOMContentLoaded", () => {
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ cookies: cookiesText })
                 });
-                const res = await resp.json();
+                const res = await safeJson(resp);
                 if (res.success) {
                     showToast(res.message || "Đã lưu Cookies!", "success");
                 } else {
                     showToast(res.error || "Lỗi lưu cookies", "error");
                 }
+
             } catch (err) {
                 showToast("Lỗi kết nối máy chủ", "error");
             } finally {
@@ -215,6 +216,21 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
+    // Safe JSON parser to prevent "Unexpected token <"
+    async function safeJson(resp) {
+        const text = await resp.text();
+        try {
+            return JSON.parse(text);
+        } catch (e) {
+            if (resp.status >= 500) {
+                throw new Error("Máy chủ đang khởi động hoặc xử lý quá tải. Vui lòng thử lại sau giây lát!");
+            } else if (resp.status === 404) {
+                throw new Error("Không tìm thấy đường dẫn xử lý trên máy chủ.");
+            }
+            throw new Error("Không thể xử lý phản hồi từ máy chủ. Vui lòng thử lại!");
+        }
+    }
+
     // Form Submit Handler
     form.addEventListener("submit", async (e) => {
         e.preventDefault();
@@ -237,7 +253,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ url })
             });
-            const res = await resp.json();
+            const res = await safeJson(resp);
 
             if (!res.success) {
                 throw new Error(res.error || "Không thể trích xuất dữ liệu từ liên kết này.");
@@ -259,6 +275,7 @@ document.addEventListener("DOMContentLoaded", () => {
             skeleton.classList.add("hidden");
         }
     });
+
 
     // Render YouTube Result
     function renderYouTubeResult(data) {
@@ -572,7 +589,7 @@ document.addEventListener("DOMContentLoaded", () => {
                             author: data.author_username
                         })
                     });
-                    const res = await resp.json();
+                    const res = await safeJson(resp);
                     if (res.success) {
                         showToast("Đã lưu video thành công vào thư mục Downloads!", "success");
                     } else {
@@ -605,7 +622,7 @@ document.addEventListener("DOMContentLoaded", () => {
                             author: data.author_username
                         })
                     });
-                    const res = await resp.json();
+                    const res = await safeJson(resp);
                     if (res.success) {
                         showToast(`Đã lưu toàn bộ ${res.files.length} ảnh gốc vào thư mục Downloads!`, "success");
                     } else {
@@ -625,14 +642,14 @@ document.addEventListener("DOMContentLoaded", () => {
     btnOpenFolder.addEventListener("click", async () => {
         try {
             const resp = await fetch("/api/open-folder", { method: "POST" });
-            const res = await resp.json();
+            const res = await safeJson(resp);
             if (res.success) {
                 showToast("Đang mở thư mục lưu trữ...", "info");
             } else {
                 showToast(res.error || "Không thể mở thư mục.", "error");
             }
         } catch (err) {
-            showToast("Lỗi mở thư mục.", "error");
+            showToast("Lỗi mở thư mục: " + err.message, "error");
         }
     });
 
@@ -665,7 +682,7 @@ document.addEventListener("DOMContentLoaded", () => {
         historyList.innerHTML = `<div class="text-center text-muted p-4"><i class="fa-solid fa-spinner fa-spin"></i> Đang tải...</div>`;
         try {
             const resp = await fetch("/api/history");
-            const res = await resp.json();
+            const res = await safeJson(resp);
             const history = res.history || [];
             
             if (history.length === 0) {
@@ -688,6 +705,7 @@ document.addEventListener("DOMContentLoaded", () => {
             historyList.innerHTML = `<div class="text-danger p-4">Không thể tải danh sách lịch sử.</div>`;
         }
     }
+
 
     window.openExplorer = () => {
         fetch("/api/open-folder", { method: "POST" });
