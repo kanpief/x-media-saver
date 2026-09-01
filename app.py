@@ -66,9 +66,9 @@ def add_security_headers(response):
         "default-src 'self'; "
         "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://kit.fontawesome.com https://ka-f.fontawesome.com; "
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com https://ka-f.fontawesome.com; "
-        "font-src 'self' https://fonts.gstatic.com https://ka-f.fontawesome.com data:; "
+        "font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com https://ka-f.fontawesome.com data:; "
         "img-src 'self' data: https: blob:; "
-        "connect-src 'self' https://ka-f.fontawesome.com; "
+        "connect-src 'self' https://ka-f.fontawesome.com https://cdnjs.cloudflare.com; "
         "media-src 'self' blob:;"
     )
     return response
