@@ -191,19 +191,51 @@ def api_stream_file():
     response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
     return response
 
-PROGRESS_REGISTRY = {}
+def write_progress(task_id, data):
+    if not task_id:
+        return
+    try:
+        p_path = os.path.join(DOWNLOADS_DIR, f"progress_{task_id}.json")
+        with open(p_path, "w", encoding="utf-8") as f:
+            json.dump(data, f)
+    except Exception:
+        pass
+
+def read_progress(task_id):
+    if not task_id:
+        return None
+    p_path = os.path.join(DOWNLOADS_DIR, f"progress_{task_id}.json")
+    if os.path.exists(p_path):
+        try:
+            with open(p_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return None
+
+def clean_progress(task_id):
+    if not task_id:
+        return
+    p_path = os.path.join(DOWNLOADS_DIR, f"progress_{task_id}.json")
+    if os.path.exists(p_path):
+        try:
+            os.remove(p_path)
+        except Exception:
+            pass
 
 @app.route("/api/progress/<task_id>")
 def api_get_progress(task_id):
-    """Lấy tiến trình tải tệp thời gian thực."""
-    info = PROGRESS_REGISTRY.get(task_id, {
-        "status": "idle",
-        "percent": 0,
-        "speed": "0 MB/s",
-        "downloaded": "0 MB",
-        "total": "0 MB",
-        "eta": "Đang kết nối..."
-    })
+    """Lấy tiến trình tải tệp thời gian thực (chia sẻ qua mọi Gunicorn workers)."""
+    info = read_progress(task_id)
+    if not info:
+        info = {
+            "status": "started",
+            "percent": 10,
+            "speed": "Đang kết nối",
+            "downloaded": "0 MB",
+            "total": "...",
+            "eta": "Đang phân tích..."
+        }
     return jsonify(info)
 
 @app.route("/api/stream-youtube")
@@ -230,61 +262,63 @@ def api_stream_youtube():
         if d.get('status') == 'downloading':
             total = d.get('total_bytes') or d.get('total_bytes_estimate') or 0
             downloaded = d.get('downloaded_bytes', 0)
-            percent = int(downloaded / total * 100) if total > 0 else 0
+            percent = int(downloaded / total * 100) if total > 0 else 15
             speed = d.get('speed') or 0
             speed_str = f"{speed / (1024*1024):.1f} MB/s" if speed else "N/A"
             eta = d.get('eta') or 0
             eta_str = f"{eta}s" if eta else "Đang tính..."
-            PROGRESS_REGISTRY[task_id] = {
+            write_progress(task_id, {
                 "status": "downloading",
-                "percent": min(percent, 95),
+                "percent": min(max(percent, 12), 95),
                 "speed": speed_str,
                 "downloaded": f"{downloaded / (1024*1024):.1f} MB",
                 "total": f"{total / (1024*1024):.1f} MB" if total else "N/A",
                 "eta": eta_str
-            }
+            })
         elif d.get('status') == 'finished':
-            PROGRESS_REGISTRY[task_id] = {
+            write_progress(task_id, {
                 "status": "converting",
                 "percent": 98,
                 "speed": "Đang nén",
                 "downloaded": "Hoàn tất tải",
                 "total": "Đóng gói tệp",
                 "eta": "1s"
-            }
+            })
 
     try:
         if task_id:
-            PROGRESS_REGISTRY[task_id] = {
+            write_progress(task_id, {
                 "status": "started",
-                "percent": 5,
+                "percent": 10,
                 "speed": "Đang kết nối",
                 "downloaded": "0 MB",
                 "total": "Đang phân tích",
                 "eta": "..."
-            }
+            })
 
         final_path = download_youtube_file(yt_url, target_type, quality, temp_path, progress_callback=on_progress)
         
         if task_id:
-            PROGRESS_REGISTRY[task_id] = {
+            write_progress(task_id, {
                 "status": "completed",
                 "percent": 100,
                 "speed": "Hoàn tất",
                 "downloaded": "100%",
                 "total": "Sẵn sàng",
                 "eta": "0s"
-            }
+            })
 
         @after_this_request
         def remove_temp(response):
             try:
+                clean_progress(task_id)
                 if os.path.exists(final_path):
                     if os.environ.get("RENDER"):
                         os.remove(final_path)
             except Exception:
                 pass
             return response
+
 
         return send_file(
             final_path,
@@ -293,15 +327,15 @@ def api_stream_youtube():
         )
     except Exception as e:
         if task_id:
-            PROGRESS_REGISTRY[task_id] = {
+            write_progress(task_id, {
                 "status": "error",
                 "percent": 0,
                 "speed": "Lỗi",
                 "downloaded": "0 MB",
                 "total": "0 MB",
                 "eta": str(e)
-            }
-        return f"Lỗi xử lý file: {str(e)}", 500
+            })
+        return jsonify({"success": False, "error": f"Lỗi xử lý file: {str(e)}"}), 500
 
 
 
