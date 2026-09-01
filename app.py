@@ -191,13 +191,29 @@ def api_stream_file():
     response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
     return response
 
+PROGRESS_REGISTRY = {}
+
+@app.route("/api/progress/<task_id>")
+def api_get_progress(task_id):
+    """Lấy tiến trình tải tệp thời gian thực."""
+    info = PROGRESS_REGISTRY.get(task_id, {
+        "status": "idle",
+        "percent": 0,
+        "speed": "0 MB/s",
+        "downloaded": "0 MB",
+        "total": "0 MB",
+        "eta": "Đang kết nối..."
+    })
+    return jsonify(info)
+
 @app.route("/api/stream-youtube")
 def api_stream_youtube():
-    """Tải và stream YouTube Video / MP3 về trình duyệt qua Flask."""
+    """Tải và stream YouTube Video / MP3 về trình duyệt qua Flask kèm theo dõi % thời gian thực."""
     yt_url = request.args.get("url")
     target_type = request.args.get("type", "mp3")
     quality = request.args.get("quality", "320")
     title = request.args.get("title", "youtube_media")
+    task_id = request.args.get("task_id", "")
 
     if not yt_url:
         return "Thiếu URL YouTube", 400
@@ -208,14 +224,62 @@ def api_stream_youtube():
     temp_filename = f"temp_{clean_title}_{timestamp}.{ext}"
     temp_path = os.path.join(DOWNLOADS_DIR, temp_filename)
 
+    def on_progress(d):
+        if not task_id:
+            return
+        if d.get('status') == 'downloading':
+            total = d.get('total_bytes') or d.get('total_bytes_estimate') or 0
+            downloaded = d.get('downloaded_bytes', 0)
+            percent = int(downloaded / total * 100) if total > 0 else 0
+            speed = d.get('speed') or 0
+            speed_str = f"{speed / (1024*1024):.1f} MB/s" if speed else "N/A"
+            eta = d.get('eta') or 0
+            eta_str = f"{eta}s" if eta else "Đang tính..."
+            PROGRESS_REGISTRY[task_id] = {
+                "status": "downloading",
+                "percent": min(percent, 95),
+                "speed": speed_str,
+                "downloaded": f"{downloaded / (1024*1024):.1f} MB",
+                "total": f"{total / (1024*1024):.1f} MB" if total else "N/A",
+                "eta": eta_str
+            }
+        elif d.get('status') == 'finished':
+            PROGRESS_REGISTRY[task_id] = {
+                "status": "converting",
+                "percent": 98,
+                "speed": "Đang nén",
+                "downloaded": "Hoàn tất tải",
+                "total": "Đóng gói tệp",
+                "eta": "1s"
+            }
+
     try:
-        final_path = download_youtube_file(yt_url, target_type, quality, temp_path)
+        if task_id:
+            PROGRESS_REGISTRY[task_id] = {
+                "status": "started",
+                "percent": 5,
+                "speed": "Đang kết nối",
+                "downloaded": "0 MB",
+                "total": "Đang phân tích",
+                "eta": "..."
+            }
+
+        final_path = download_youtube_file(yt_url, target_type, quality, temp_path, progress_callback=on_progress)
         
+        if task_id:
+            PROGRESS_REGISTRY[task_id] = {
+                "status": "completed",
+                "percent": 100,
+                "speed": "Hoàn tất",
+                "downloaded": "100%",
+                "total": "Sẵn sàng",
+                "eta": "0s"
+            }
+
         @after_this_request
         def remove_temp(response):
             try:
                 if os.path.exists(final_path):
-                    # Giữ lại nếu là máy tính cá nhân hoặc xóa nếu là server cloud
                     if os.environ.get("RENDER"):
                         os.remove(final_path)
             except Exception:
@@ -228,7 +292,17 @@ def api_stream_youtube():
             download_name=f"{clean_title}.{ext}"
         )
     except Exception as e:
+        if task_id:
+            PROGRESS_REGISTRY[task_id] = {
+                "status": "error",
+                "percent": 0,
+                "speed": "Lỗi",
+                "downloaded": "0 MB",
+                "total": "0 MB",
+                "eta": str(e)
+            }
         return f"Lỗi xử lý file: {str(e)}", 500
+
 
 
 @app.route("/api/save-cookies", methods=["POST"])

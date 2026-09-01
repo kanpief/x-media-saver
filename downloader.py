@@ -445,18 +445,22 @@ def extract_youtube_media(url: str) -> dict:
         "url": clean_url
     }
 
-def download_youtube_file(url: str, target_type: str, quality_id: str, output_path: str) -> str:
-    """Tải và chuyển đổi YouTube video hoặc MP3 audio (tự động fallback sang Cloud Converter nếu bị chặn)."""
+def download_youtube_file(url: str, target_type: str, quality_id: str, output_path: str, progress_callback=None) -> str:
+    """Tải và chuyển đổi YouTube video hoặc MP3 audio với hook tiến trình thời gian thực."""
     clean_url = clean_youtube_url(url)
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     base_output = os.path.splitext(output_path)[0]
 
-    # Cách 1: Thử tải qua yt-dlp
+    # Cách 1: Thử tải qua yt-dlp với Progress Hook
     try:
         extra_opts = {
             'outtmpl': f"{base_output}.%(ext)s",
             'noplaylist': True,
         }
+        
+        if progress_callback:
+            extra_opts['progress_hooks'] = [progress_callback]
+
         if target_type == "mp3":
             extra_opts.update({
                 'format': 'bestaudio[ext=m4a]/bestaudio/best',
@@ -475,7 +479,6 @@ def download_youtube_file(url: str, target_type: str, quality_id: str, output_pa
                 'merge_output_format': 'mp4',
             })
 
-
         ydl_opts = get_yt_opts(extra_opts)
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([clean_url])
@@ -492,6 +495,7 @@ def download_youtube_file(url: str, target_type: str, quality_id: str, output_pa
 
     # Cách 2: Tự động fallback sang Cloud Converter Server
     return convert_via_cloud_api(clean_url, target_type, quality_id, output_path)
+
 
 
 

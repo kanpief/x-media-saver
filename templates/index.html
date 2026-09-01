@@ -147,14 +147,21 @@
                         <i class="fa-solid fa-cloud-arrow-down fa-bounce"></i>
                     </div>
                     <div class="progress-title-meta">
-                        <h3 id="progress-file-title">Đang chuẩn bị tải tệp...</h3>
+                        <div class="progress-top-row">
+                            <h3 id="progress-file-title">Đang chuẩn bị tải tệp...</h3>
+                            <span id="progress-percent-badge" class="progress-percent-badge">0%</span>
+                        </div>
                         <p id="progress-status-desc" class="modal-subtitle">Đang kết nối đến máy chủ YouTube...</p>
                     </div>
                 </div>
 
                 <div class="progress-track-wrapper">
                     <div class="progress-bar-animated">
-                        <div class="progress-bar-fill"></div>
+                        <div id="progress-bar-fill" class="progress-bar-fill" style="width: 0%;"></div>
+                    </div>
+                    <div class="progress-live-stats">
+                        <span id="progress-size-stats"><i class="fa-solid fa-database"></i> 0 MB / 0 MB</span>
+                        <span id="progress-speed-stats"><i class="fa-solid fa-gauge-high"></i> Đang tính...</span>
                     </div>
                     <div class="progress-steps-row">
                         <div class="p-step active" id="pstep-1"><i class="fa-solid fa-link"></i> 1. Kết nối</div>
@@ -171,6 +178,7 @@
                 </div>
             </div>
         </div>
+
 
         <!-- Settings Modal (Tùy Chỉnh Tối Ưu) -->
 

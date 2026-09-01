@@ -397,47 +397,96 @@ document.addEventListener("DOMContentLoaded", () => {
             btnBrowser.href = `/api/stream-youtube?url=${encodeURIComponent(data.url)}&type=${selectedYtMode}&quality=${encodeURIComponent(q)}&title=${encodeURIComponent(data.title)}`;
         }
 
-        // Server / Device Download Click Handler
+        // Real-time Progress Tracking Elements
         const downloadProgressModal = document.getElementById("download-progress-modal");
         const progressFileTitle = document.getElementById("progress-file-title");
         const progressStatusDesc = document.getElementById("progress-status-desc");
+        const progressPercentBadge = document.getElementById("progress-percent-badge");
+        const progressBarFill = document.getElementById("progress-bar-fill");
+        const progressSizeStats = document.getElementById("progress-size-stats");
+        const progressSpeedStats = document.getElementById("progress-speed-stats");
         const pstep1 = document.getElementById("pstep-1");
         const pstep2 = document.getElementById("pstep-2");
         const pstep3 = document.getElementById("pstep-3");
         const btnCloseProgress = document.getElementById("btn-close-progress");
 
+        let progressInterval = null;
+
         if (btnCloseProgress) {
             btnCloseProgress.addEventListener("click", () => {
+                if (progressInterval) clearInterval(progressInterval);
                 downloadProgressModal.classList.add("hidden");
             });
         }
         if (downloadProgressModal) {
             downloadProgressModal.addEventListener("click", (e) => {
-                if (e.target === downloadProgressModal) downloadProgressModal.classList.add("hidden");
+                if (e.target === downloadProgressModal) {
+                    if (progressInterval) clearInterval(progressInterval);
+                    downloadProgressModal.classList.add("hidden");
+                }
             });
         }
 
         btnServer.addEventListener("click", () => {
             const q = selectQuality.value;
-            const dlUrl = `/api/stream-youtube?url=${encodeURIComponent(data.url)}&type=${selectedYtMode}&quality=${encodeURIComponent(q)}&title=${encodeURIComponent(data.title)}`;
+            const taskId = `dl_${Date.now()}`;
+            const dlUrl = `/api/stream-youtube?url=${encodeURIComponent(data.url)}&type=${selectedYtMode}&quality=${encodeURIComponent(q)}&title=${encodeURIComponent(data.title)}&task_id=${taskId}`;
             
-            // Mở Progress Modal
+            // Reset Progress State
             if (progressFileTitle) progressFileTitle.innerText = data.title;
-            if (progressStatusDesc) progressStatusDesc.innerText = `Đang kết nối & chuyển đổi sang ${selectedYtMode.toUpperCase()}...`;
+            if (progressStatusDesc) progressStatusDesc.innerText = `Đang kết nối đến YouTube...`;
+            if (progressPercentBadge) progressPercentBadge.innerText = `0%`;
+            if (progressBarFill) progressBarFill.style.width = `0%`;
+            if (progressSizeStats) progressSizeStats.innerHTML = `<i class="fa-solid fa-database"></i> 0 MB / Đang tính...`;
+            if (progressSpeedStats) progressSpeedStats.innerHTML = `<i class="fa-solid fa-gauge-high"></i> Đang kết nối...`;
+            
             if (pstep1) pstep1.classList.add("active");
             if (pstep2) pstep2.classList.remove("active");
             if (pstep3) pstep3.classList.remove("active");
             if (downloadProgressModal) downloadProgressModal.classList.remove("hidden");
 
-            setTimeout(() => {
-                if (pstep2) pstep2.classList.add("active");
-                if (progressStatusDesc) progressStatusDesc.innerText = `Đang xuất tệp ${selectedYtMode.toUpperCase()} chất lượng cao...`;
-            }, 1500);
-
-            setTimeout(() => {
-                if (pstep3) pstep3.classList.add("active");
-                if (progressStatusDesc) progressStatusDesc.innerText = `Đang chuyển tệp về máy của bạn...`;
-            }, 3500);
+            // Bắt đầu Poll tiến trình thời gian thực
+            if (progressInterval) clearInterval(progressInterval);
+            progressInterval = setInterval(async () => {
+                try {
+                    const resp = await fetch(`/api/progress/${taskId}`);
+                    const info = await safeJson(resp);
+                    
+                    if (info.status === "downloading" || info.status === "started") {
+                        const pct = info.percent || 0;
+                        if (progressPercentBadge) progressPercentBadge.innerText = `${pct}%`;
+                        if (progressBarFill) progressBarFill.style.width = `${pct}%`;
+                        if (progressSizeStats) progressSizeStats.innerHTML = `<i class="fa-solid fa-database"></i> ${info.downloaded || '0 MB'} / ${info.total || '...'}`;
+                        if (progressSpeedStats) progressSpeedStats.innerHTML = `<i class="fa-solid fa-gauge-high"></i> ${info.speed || 'N/A'}`;
+                        if (progressStatusDesc) progressStatusDesc.innerText = `Đang tải: ${pct}% • Còn lại ~${info.eta || 'vài giây'}`;
+                        
+                        if (pstep1) pstep1.classList.add("active");
+                        if (pstep2) pstep2.classList.remove("active");
+                        if (pstep3) pstep3.classList.remove("active");
+                    } else if (info.status === "converting") {
+                        if (progressPercentBadge) progressPercentBadge.innerText = `98%`;
+                        if (progressBarFill) progressBarFill.style.width = `98%`;
+                        if (progressSpeedStats) progressSpeedStats.innerHTML = `<i class="fa-solid fa-gears fa-spin"></i> Đang nén`;
+                        if (progressStatusDesc) progressStatusDesc.innerText = `Đang hoàn tất đóng gói tệp ${selectedYtMode.toUpperCase()}...`;
+                        
+                        if (pstep1) pstep1.classList.add("active");
+                        if (pstep2) pstep2.classList.add("active");
+                    } else if (info.status === "completed") {
+                        if (progressPercentBadge) progressPercentBadge.innerText = `100%`;
+                        if (progressBarFill) progressBarFill.style.width = `100%`;
+                        if (progressSpeedStats) progressSpeedStats.innerHTML = `<i class="fa-solid fa-circle-check text-success"></i> Hoàn tất`;
+                        if (progressStatusDesc) progressStatusDesc.innerText = `Đã xuất tệp thành công! Đang lưu về máy...`;
+                        
+                        if (pstep1) pstep1.classList.add("active");
+                        if (pstep2) pstep2.classList.add("active");
+                        if (pstep3) pstep3.classList.add("active");
+                        
+                        clearInterval(progressInterval);
+                    }
+                } catch (e) {
+                    // Tiếp tục thử
+                }
+            }, 400);
 
             // Kích hoạt trình tải của trình duyệt
             const ext = selectedYtMode === "mp3" ? "mp3" : "mp4";
@@ -447,8 +496,8 @@ document.addEventListener("DOMContentLoaded", () => {
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
-
         });
+
 
 
     }
