@@ -187,6 +187,46 @@ def api_download_server():
     else:
         return jsonify({"success": False, "error": "Không thể tải được tệp nào. Vui lòng thử lại!"}), 500
 
+@app.route("/api/download-zip", methods=["POST"])
+def api_download_zip():
+    """Tải nhiều ảnh/video cùng lúc, đóng gói thành 1 file ZIP trả về browser."""
+    import zipfile, io
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    data = request.get_json() or {}
+    items = data.get("items", [])   # [{url, name, ext}, ...]
+    zip_name = data.get("zip_name", "X_media")
+
+    if not items:
+        return jsonify({"success": False, "error": "Không có tệp nào để tải!"}), 400
+
+    def fetch_one(item):
+        url = item.get("url")
+        name = item.get("name", "file")
+        ext = item.get("ext", "jpg")
+        try:
+            resp = requests.get(url, headers=HEADERS, timeout=20, stream=True)
+            resp.raise_for_status()
+            return (f"{name}.{ext}", resp.content)
+        except Exception as e:
+            return (f"{name}.{ext}", None)
+
+    zip_buf = io.BytesIO()
+    with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        with ThreadPoolExecutor(max_workers=min(len(items), 6)) as pool:
+            futures = {pool.submit(fetch_one, item): item for item in items}
+            for future in as_completed(futures):
+                filename, content = future.result()
+                if content:
+                    zf.writestr(filename, content)
+
+    zip_buf.seek(0)
+    return Response(
+        zip_buf.read(),
+        mimetype="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{zip_name}.zip"'}
+    )
+
 @app.route("/api/stream-file")
 def api_stream_file():
     """Chuyển tiếp luồng tải trực tiếp về trình duyệt."""

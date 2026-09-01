@@ -759,29 +759,47 @@ document.addEventListener("DOMContentLoaded", () => {
         if (btnDlPhotosServer) {
             btnDlPhotosServer.addEventListener("click", async () => {
                 const photos = data.photos;
-                showToast(`Đang tải ${photos.length} ảnh về máy...`, "info");
                 btnDlPhotosServer.disabled = true;
-                btnDlPhotosServer.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Đang tải...`;
+                btnDlPhotosServer.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Đang đóng gói ${photos.length} ảnh...`;
 
-                // Tải từng ảnh lần lượt với delay nhỏ
-                for (let i = 0; i < photos.length; i++) {
-                    const p = photos[i];
-                    const ext = p.download_url.includes('.png') ? 'png' : 'jpg';
-                    const fname = `X_${data.author_username}_${data.tweet_id}_${i+1}`;
+                try {
+                    const items = photos.map((p, i) => {
+                        const ext = p.download_url.includes('.png') ? 'png' : 'jpg';
+                        return {
+                            url: p.download_url,
+                            name: `X_${data.author_username}_${data.tweet_id}_${i+1}`,
+                            ext
+                        };
+                    });
+
+                    const resp = await fetch("/api/download-zip", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            items,
+                            zip_name: `X_${data.author_username}_${data.tweet_id}_${photos.length}anh`
+                        })
+                    });
+
+                    if (!resp.ok) throw new Error("Lỗi server khi tạo ZIP");
+
+                    const blob = await resp.blob();
+                    const url = URL.createObjectURL(blob);
                     const a = document.createElement("a");
-                    a.href = `/api/stream-file?url=${encodeURIComponent(p.download_url)}&name=${encodeURIComponent(fname)}&ext=${ext}`;
-                    a.download = `${fname}.${ext}`;
+                    a.href = url;
+                    a.download = `X_${data.author_username}_${data.tweet_id}_${photos.length}anh.zip`;
                     document.body.appendChild(a);
                     a.click();
                     document.body.removeChild(a);
-                    if (i < photos.length - 1) await new Promise(r => setTimeout(r, 800));
-                }
+                    URL.revokeObjectURL(url);
 
-                setTimeout(() => {
+                    showToast(`✅ Đã tải ${photos.length} ảnh gốc vào 1 file ZIP!`, "success");
+                } catch (err) {
+                    showToast("Lỗi tạo ZIP: " + err.message, "error");
+                } finally {
                     btnDlPhotosServer.disabled = false;
                     btnDlPhotosServer.innerHTML = `<i class="fa-solid fa-cloud-arrow-down"></i> Tải tất cả (${photos.length} ảnh) vào máy`;
-                    showToast(`Đã gửi ${photos.length} ảnh gốc! Kiểm tra mục Downloads.`, "success");
-                }, photos.length * 800 + 500);
+                }
             });
         }
     }
