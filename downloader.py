@@ -236,15 +236,20 @@ def extract_tweet_media(url_or_id: str) -> dict:
 
 # ==================== YOUTUBE & MP3 EXTRACTOR ====================
 
-def format_duration(seconds: int) -> str:
-    """Format duration in seconds to mm:ss or hh:mm:ss."""
-    if not seconds:
-        return "0:00"
-    m, s = divmod(int(seconds), 60)
-    h, m = divmod(m, 60)
-    if h > 0:
-        return f"{h}:{m:02d}:{s:02d}"
-    return f"{m}:{s:02d}"
+def clean_youtube_url(url: str) -> str:
+    """Loại bỏ các tham số playlist, radio mix (&list=, &start_radio=, &index=) để chỉ trích xuất đúng 1 video đích tức thì."""
+    if not url:
+        return url
+    shorts_match = re.search(r'youtube\.com/shorts/([a-zA-Z0-9_-]+)', url)
+    if shorts_match:
+        return f"https://www.youtube.com/watch?v={shorts_match.group(1)}"
+    ytbe_match = re.search(r'youtu\.be/([a-zA-Z0-9_-]+)', url)
+    if ytbe_match:
+        return f"https://www.youtube.com/watch?v={ytbe_match.group(1)}"
+    watch_match = re.search(r'[?&]v=([a-zA-Z0-9_-]+)', url)
+    if watch_match:
+        return f"https://www.youtube.com/watch?v={watch_match.group(1)}"
+    return url
 
 def get_yt_opts(extra_opts=None):
     """Tạo cấu hình yt-dlp tối ưu vượt qua bot-check của YouTube (kể cả trên IP Datacenter Render)."""
@@ -260,6 +265,8 @@ def get_yt_opts(extra_opts=None):
     opts = {
         'quiet': True,
         'no_warnings': True,
+        'noplaylist': True,
+        'extract_flat': False,
         'extractor_args': {
             'youtube': {
                 'player_client': ['tv_embedded', 'android_vr', 'android'],
@@ -278,16 +285,19 @@ def get_yt_opts(extra_opts=None):
         opts.update(extra_opts)
     return opts
 
-
-
 def extract_youtube_media(url: str) -> dict:
     """Trích xuất thông tin video YouTube, phân loại các định dạng Video MP4 & Audio MP3."""
+    clean_url = clean_youtube_url(url)
     ydl_opts = get_yt_opts({'skip_download': True})
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=False)
+        info = ydl.extract_info(clean_url, download=False)
         if not info:
             raise ValueError("Không thể lấy thông tin video từ YouTube. Vui lòng kiểm tra lại liên kết.")
+
+        # Nếu là playlist lồng nhau, lấy video đầu tiên
+        if "entries" in info and info["entries"]:
+            info = info["entries"][0]
 
         title = info.get('title', 'YouTube Video')
         video_id = info.get('id', '')
@@ -295,6 +305,7 @@ def extract_youtube_media(url: str) -> dict:
         duration = info.get('duration', 0)
         view_count = info.get('view_count', 0)
         thumbnail = info.get('thumbnail', f"https://i.ytimg.com/vi/{video_id}/maxresdefault.jpg")
+
 
         formats = info.get('formats', [])
         
@@ -337,11 +348,13 @@ def extract_youtube_media(url: str) -> dict:
 
 def download_youtube_file(url: str, target_type: str, quality_id: str, output_path: str) -> str:
     """Tải và chuyển đổi YouTube video hoặc MP3 audio."""
+    clean_url = clean_youtube_url(url)
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     base_output = os.path.splitext(output_path)[0]
 
     extra_opts = {
         'outtmpl': f"{base_output}.%(ext)s",
+        'noplaylist': True,
     }
 
     if target_type == "mp3":
@@ -363,7 +376,8 @@ def download_youtube_file(url: str, target_type: str, quality_id: str, output_pa
     ydl_opts = get_yt_opts(extra_opts)
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        ydl.download([url])
+        ydl.download([clean_url])
+
 
     expected_file = f"{base_output}.mp3" if target_type == "mp3" else f"{base_output}.mp4"
     if os.path.exists(expected_file):
