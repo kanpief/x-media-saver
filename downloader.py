@@ -300,65 +300,91 @@ def get_yt_opts(extra_opts=None):
     return opts
 
 def extract_youtube_media(url: str) -> dict:
-    """Trích xuất thông tin video YouTube, phân loại các định dạng Video MP4 & Audio MP3."""
+    """Trích xuất thông tin video YouTube, phân loại các định dạng Video MP4 & Audio MP3 với cơ chế đa tầng."""
     clean_url = clean_youtube_url(url)
-    ydl_opts = get_yt_opts({'skip_download': True})
+    
+    client_candidates = [
+        ['tv_embedded', 'android_vr'],
+        ['android', 'mweb'],
+        ['ios', 'web_creator']
+    ]
+    
+    info = None
+    last_err = None
 
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(clean_url, download=False)
-        if not info:
-            raise ValueError("Không thể lấy thông tin video từ YouTube. Vui lòng kiểm tra lại liên kết.")
+    for clients in client_candidates:
+        try:
+            ydl_opts = get_yt_opts({
+                'skip_download': True,
+                'extractor_args': {
+                    'youtube': {
+                        'player_client': clients,
+                        'player_skip': ['webpage', 'configs']
+                    }
+                }
+            })
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                extracted = ydl.extract_info(clean_url, download=False)
+                if extracted:
+                    info = extracted
+                    break
+        except Exception as e:
+            last_err = e
+            continue
 
-        # Nếu là playlist lồng nhau, lấy video đầu tiên
-        if "entries" in info and info["entries"]:
-            info = info["entries"][0]
+    if not info:
+        raise ValueError(f"Không thể trích xuất video YouTube: {str(last_err or 'Vui lòng thử lại')}")
 
-        title = info.get('title', 'YouTube Video')
-        video_id = info.get('id', '')
-        uploader = info.get('uploader', 'YouTube Channel')
-        duration = info.get('duration', 0)
-        view_count = info.get('view_count', 0)
-        thumbnail = info.get('thumbnail', f"https://i.ytimg.com/vi/{video_id}/maxresdefault.jpg")
+    # Nếu là playlist lồng nhau, lấy video đầu tiên
+    if "entries" in info and info["entries"]:
+        info = info["entries"][0]
 
+    title = info.get('title', 'YouTube Video')
+    video_id = info.get('id', '')
+    uploader = info.get('uploader', 'YouTube Channel')
+    duration = info.get('duration', 0)
+    view_count = info.get('view_count', 0)
+    thumbnail = info.get('thumbnail', f"https://i.ytimg.com/vi/{video_id}/maxresdefault.jpg")
 
-        formats = info.get('formats', [])
-        
-        # Danh sách video chất lượng cao
-        video_qualities = [
-            {"id": "bestvideo+bestaudio/best", "label": "Full HD / 4K Tốt Nhất (MP4)", "format_id": "best", "ext": "mp4"},
-            {"id": "bestvideo[height<=1080]+bestaudio/best[height<=1080]", "label": "1080p Full HD (MP4)", "format_id": "1080p", "ext": "mp4"},
-            {"id": "bestvideo[height<=720]+bestaudio/best[height<=720]", "label": "720p HD (MP4)", "format_id": "720p", "ext": "mp4"},
-            {"id": "bestvideo[height<=480]+bestaudio/best[height<=480]", "label": "480p Tiết Kiệm (MP4)", "format_id": "480p", "ext": "mp4"},
-            {"id": "bestvideo[height<=360]+bestaudio/best[height<=360]", "label": "360p Nhẹ Nhất (MP4)", "format_id": "360p", "ext": "mp4"},
-        ]
+    formats = info.get('formats', [])
+    
+    # Danh sách video chất lượng cao
+    video_qualities = [
+        {"id": "bestvideo+bestaudio/best", "label": "Full HD / 4K Tốt Nhất (MP4)", "format_id": "best", "ext": "mp4"},
+        {"id": "bestvideo[height<=1080]+bestaudio/best[height<=1080]", "label": "1080p Full HD (MP4)", "format_id": "1080p", "ext": "mp4"},
+        {"id": "bestvideo[height<=720]+bestaudio/best[height<=720]", "label": "720p HD (MP4)", "format_id": "720p", "ext": "mp4"},
+        {"id": "bestvideo[height<=480]+bestaudio/best[height<=480]", "label": "480p Tiết Kiệm (MP4)", "format_id": "480p", "ext": "mp4"},
+        {"id": "bestvideo[height<=360]+bestaudio/best[height<=360]", "label": "360p Nhẹ Nhất (MP4)", "format_id": "360p", "ext": "mp4"},
+    ]
 
-        # Danh sách audio MP3 chất lượng cao
-        audio_qualities = [
-            {"id": "320", "label": "Chất lượng cực cao (MP3 320kbps)", "bitrate": "320k", "ext": "mp3"},
-            {"id": "192", "label": "Chất lượng chuẩn Studio (MP3 192kbps)", "bitrate": "192k", "ext": "mp3"},
-            {"id": "128", "label": "Chất lượng tiêu chuẩn (MP3 128kbps)", "bitrate": "128k", "ext": "mp3"},
-        ]
+    # Danh sách audio MP3 chất lượng cao
+    audio_qualities = [
+        {"id": "320", "label": "Chất lượng cực cao (MP3 320kbps)", "bitrate": "320k", "ext": "mp3"},
+        {"id": "192", "label": "Chất lượng chuẩn Studio (MP3 192kbps)", "bitrate": "192k", "ext": "mp3"},
+        {"id": "128", "label": "Chất lượng tiêu chuẩn (MP3 128kbps)", "bitrate": "128k", "ext": "mp3"},
+    ]
 
-        direct_stream_url = None
-        for f in reversed(formats):
-            if f.get('vcodec') != 'none' and f.get('acodec') != 'none' and f.get('ext') == 'mp4':
-                direct_stream_url = f.get('url')
-                break
+    direct_stream_url = None
+    for f in reversed(formats):
+        if f.get('vcodec') != 'none' and f.get('acodec') != 'none' and f.get('ext') == 'mp4':
+            direct_stream_url = f.get('url')
+            break
 
-        return {
-            "platform": "youtube",
-            "video_id": video_id,
-            "title": title,
-            "uploader": uploader,
-            "duration": duration,
-            "duration_str": format_duration(duration),
-            "view_count": f"{view_count:,}" if view_count else "N/A",
-            "thumbnail": thumbnail,
-            "video_qualities": video_qualities,
-            "audio_qualities": audio_qualities,
-            "direct_stream_url": direct_stream_url or thumbnail,
-            "url": url
-        }
+    return {
+        "platform": "youtube",
+        "video_id": video_id,
+        "title": title,
+        "uploader": uploader,
+        "duration": duration,
+        "duration_str": format_duration(duration),
+        "view_count": f"{view_count:,}" if view_count else "N/A",
+        "thumbnail": thumbnail,
+        "video_qualities": video_qualities,
+        "audio_qualities": audio_qualities,
+        "direct_stream_url": direct_stream_url or thumbnail,
+        "url": url
+    }
+
 
 def download_youtube_file(url: str, target_type: str, quality_id: str, output_path: str) -> str:
     """Tải và chuyển đổi YouTube video hoặc MP3 audio."""
