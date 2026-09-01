@@ -246,15 +246,33 @@ def format_duration(seconds: int) -> str:
         return f"{h}:{m:02d}:{s:02d}"
     return f"{m}:{s:02d}"
 
-def extract_youtube_media(url: str) -> dict:
-    """Trích xuất thông tin video YouTube, phân loại các định dạng Video MP4 & Audio MP3."""
-    ydl_opts = {
+def get_yt_opts(extra_opts=None):
+    """Tạo cấu hình yt-dlp tối ưu vượt qua bot-check của YouTube."""
+    opts = {
         'quiet': True,
         'no_warnings': True,
-        'skip_download': True,
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['ios', 'android', 'mweb', 'web_creator']
+            }
+        },
+        'http_headers': HEADERS,
     }
     if FFMPEG_PATH:
-        ydl_opts['ffmpeg_location'] = FFMPEG_PATH
+        opts['ffmpeg_location'] = FFMPEG_PATH
+    
+    # Tự động nạp cookies nếu có file cookies.txt trong thư mục dự án
+    cookies_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.txt")
+    if os.path.exists(cookies_file):
+        opts['cookiefile'] = cookies_file
+
+    if extra_opts:
+        opts.update(extra_opts)
+    return opts
+
+def extract_youtube_media(url: str) -> dict:
+    """Trích xuất thông tin video YouTube, phân loại các định dạng Video MP4 & Audio MP3."""
+    ydl_opts = get_yt_opts({'skip_download': True})
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=False)
@@ -286,7 +304,6 @@ def extract_youtube_media(url: str) -> dict:
             {"id": "128", "label": "Chất lượng tiêu chuẩn (MP3 128kbps)", "bitrate": "128k", "ext": "mp3"},
         ]
 
-        # Tìm direct stream URL nếu có
         direct_stream_url = None
         for f in reversed(formats):
             if f.get('vcodec') != 'none' and f.get('acodec') != 'none' and f.get('ext') == 'mp4':
@@ -311,20 +328,14 @@ def extract_youtube_media(url: str) -> dict:
 def download_youtube_file(url: str, target_type: str, quality_id: str, output_path: str) -> str:
     """Tải và chuyển đổi YouTube video hoặc MP3 audio."""
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    
-    # Loại bỏ extension khỏi output_path vì yt-dlp sẽ tự động gán
     base_output = os.path.splitext(output_path)[0]
 
-    ydl_opts = {
+    extra_opts = {
         'outtmpl': f"{base_output}.%(ext)s",
-        'quiet': True,
-        'no_warnings': True,
     }
-    if FFMPEG_PATH:
-        ydl_opts['ffmpeg_location'] = FFMPEG_PATH
 
     if target_type == "mp3":
-        ydl_opts.update({
+        extra_opts.update({
             'format': 'bestaudio/best',
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
@@ -333,12 +344,13 @@ def download_youtube_file(url: str, target_type: str, quality_id: str, output_pa
             }],
         })
     else:
-        # Video MP4
         format_spec = quality_id or 'bestvideo+bestaudio/best'
-        ydl_opts.update({
+        extra_opts.update({
             'format': format_spec,
             'merge_output_format': 'mp4',
         })
+
+    ydl_opts = get_yt_opts(extra_opts)
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([url])
@@ -347,13 +359,13 @@ def download_youtube_file(url: str, target_type: str, quality_id: str, output_pa
     if os.path.exists(expected_file):
         return expected_file
     
-    # Tìm file có base_output
     for ext in [".mp4", ".mp3", ".m4a", ".webm", ".mkv"]:
         p = f"{base_output}{ext}"
         if os.path.exists(p):
             return p
 
     return output_path
+
 
 # ==================== MAIN DISPATCHER ====================
 
