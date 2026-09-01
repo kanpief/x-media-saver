@@ -140,6 +140,19 @@ document.addEventListener("DOMContentLoaded", () => {
         }, duration);
     }
 
+    // Auto-reset sau khi tải xong
+    function autoReset(delayMs = 2500) {
+        setTimeout(() => {
+            inputUrl.value = "";
+            btnClear.classList.add("hidden");
+            resultContainer.classList.add("hidden");
+            resultContainer.innerHTML = "";
+            skeletonLoading.classList.add("hidden");
+            window.scrollTo({ top: 0, behavior: "smooth" });
+            inputUrl.focus();
+        }, delayMs);
+    }
+
     // Tab Switching
     tabBtns.forEach(btn => {
         btn.addEventListener("click", () => {
@@ -521,6 +534,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 setTimeout(() => {
                     unlockClose();
                     if (progressStatusDesc) progressStatusDesc.innerText = `✅ Đã lưu vào thư mục Downloads!`;
+                    autoReset(3000);
                 }, 3000);
             };
 
@@ -661,7 +675,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     <button id="btn-dl-photos-server" class="btn btn-primary btn-full btn-glow">
                         <i class="fa-solid fa-cloud-arrow-down"></i>
                         <span>Tải tất cả ${count} ảnh · 1 phát</span>
-                        <span class="btn-badge">JPG</span>
+                        <span class="btn-badge">PNG</span>
                     </button>
                 </div>
             `;
@@ -730,7 +744,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const btnDlVideoServer = document.getElementById("btn-dl-video-server");
         if (btnDlVideoServer) {
             btnDlVideoServer.addEventListener("click", () => {
-                const targetUrl = selectQuality ? selectQuality.value : data.videos[0].download_url;
+                const targetUrl = selectQuality ? selectQuality.value : (data.videos[0].download_url);
                 const fname = `X_${data.author_username}_${data.tweet_id}`;
                 const a = document.createElement("a");
                 a.href = `/api/stream-file?url=${encodeURIComponent(targetUrl)}&name=${encodeURIComponent(fname)}&ext=mp4`;
@@ -739,6 +753,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 a.click();
                 document.body.removeChild(a);
                 showToast("Đang tải video về máy...", "info");
+                autoReset(3000);
             });
         }
 
@@ -752,20 +767,20 @@ document.addEventListener("DOMContentLoaded", () => {
                 // Tải song song, delay nhỏ giữa mỗi file để browser không block
                 for (let i = 0; i < photos.length; i++) {
                     const p = photos[i];
-                    const ext = p.download_url.includes('.png') ? 'png' : 'jpg';
                     const fname = `X_${data.author_username}_${data.tweet_id}_${i+1}`;
                     const a = document.createElement("a");
-                    a.href = `/api/stream-file?url=${encodeURIComponent(p.download_url)}&name=${encodeURIComponent(fname)}&ext=${ext}`;
-                    a.download = `${fname}.${ext}`;
+                    a.href = `/api/stream-file?url=${encodeURIComponent(p.download_url)}&name=${encodeURIComponent(fname)}&ext=png`;
+                    a.download = `${fname}.png`;
                     document.body.appendChild(a);
                     a.click();
                     document.body.removeChild(a);
                     if (i < photos.length - 1) await new Promise(r => setTimeout(r, 150));
                 }
 
-                showToast(`✅ Đã gửi ${photos.length} ảnh gốc về máy!`, "success");
+                showToast(`✅ Đã gửi ${photos.length} ảnh PNG gốc về máy!`, "success");
                 btnDlPhotosServer.disabled = false;
                 btnDlPhotosServer.innerHTML = `<i class="fa-solid fa-cloud-arrow-down"></i> Tải tất cả (${photos.length} ảnh) vào máy`;
+                autoReset();
             });
         }
     }
