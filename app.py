@@ -286,38 +286,64 @@ def api_download_zip():
 
 @app.route("/api/stream-file")
 def api_stream_file():
-    """Chuyển tiếp luồng tải trực tiếp về trình duyệt với đầy đủ header chống block."""
+    """Chuyển tiếp luồng tải trực tiếp về trình duyệt với đầy đủ header chống block và giữ kết nối liên tục."""
     file_url = request.args.get("url")
     custom_name = sanitize_filename(request.args.get("name", "media"))
-    ext = sanitize_filename(request.args.get("ext", "png"))
+    ext = sanitize_filename(request.args.get("ext", "mp4"))
 
     if not file_url or not is_safe_url(file_url):
         return "URL tệp không hợp lệ", 400
 
     filename = f"{custom_name}.{ext}"
 
-    req_headers = dict(HEADERS)
+    req_headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "*/*",
+        "Accept-Encoding": "identity",
+    }
+
     if "tiktok" in file_url or "muscdn" in file_url or "byteoversea" in file_url:
         req_headers["Referer"] = "https://www.tiktok.com/"
+        req_headers["Range"] = "bytes=0-"
     elif "douyin" in file_url:
         req_headers["Referer"] = "https://www.douyin.com/"
+        req_headers["Range"] = "bytes=0-"
     elif "fbcdn.net" in file_url or "facebook.com" in file_url:
         req_headers["Referer"] = "https://www.facebook.com/"
     elif "cdninstagram.com" in file_url or "instagram.com" in file_url:
         req_headers["Referer"] = "https://www.instagram.com/"
 
     try:
-        req = requests.get(file_url, headers=req_headers, stream=True, timeout=30)
-        req.raise_for_status()
+        req = requests.get(file_url, headers=req_headers, stream=True, timeout=45)
+        if req.status_code not in [200, 206]:
+            # Thử lại không kèm referer nếu bị 403/503
+            req_headers.pop("Referer", None)
+            req = requests.get(file_url, headers=req_headers, stream=True, timeout=45)
         
-        content_type = req.headers.get("content-type", "application/octet-stream")
-        response = Response(
-            stream_with_context(req.iter_content(chunk_size=65536)),
-            content_type=content_type
+        req.raise_for_status()
+
+        content_type = req.headers.get("content-type")
+        if not content_type or "text/html" in content_type:
+            content_type = "video/mp4" if ext == "mp4" else ("audio/mpeg" if ext == "mp3" else "image/png")
+
+        res_headers = {
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Content-Type": content_type,
+            "Accept-Ranges": "bytes",
+            "Cache-Control": "no-cache",
+        }
+
+        content_length = req.headers.get("content-length")
+        if content_length:
+            res_headers["Content-Length"] = content_length
+
+        return Response(
+            stream_with_context(req.iter_content(chunk_size=131072)),
+            headers=res_headers,
+            status=200
         )
-        response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
-        return response
     except Exception as e:
+        print(f"Lỗi stream-file: {e}")
         return f"Lỗi tải luồng tệp: {str(e)}", 500
 
 def write_progress(task_id, data):

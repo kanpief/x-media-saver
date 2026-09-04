@@ -139,17 +139,12 @@ document.addEventListener("DOMContentLoaded", () => {
         }, duration);
     }
 
-    // Auto-reset UI sau khi tải xong
-    function autoReset(delayMs = 2500) {
+    // Auto-reset input sau khi tải để sẵn sàng cho link tiếp theo mà không làm mất card preview
+    function autoReset(delayMs = 1500) {
         setTimeout(() => {
             inputUrl.value = "";
             btnClear.classList.add("hidden");
-            resultContainer.classList.add("hidden");
-            resultContainer.innerHTML = "";
-            skeleton.classList.add("hidden");
             validateUrlInput("");
-            window.scrollTo({ top: 0, behavior: "smooth" });
-            inputUrl.focus();
         }, delayMs);
     }
 
