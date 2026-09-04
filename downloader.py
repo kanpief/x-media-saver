@@ -403,7 +403,7 @@ def convert_via_cloud_api(video_url: str, target_type: str, quality_id: str, out
     return final_file
 
 def extract_youtube_media(url: str) -> dict:
-    """Trích xuất thông tin video YouTube, phân loại các định dạng Video MP4 & Audio MP3."""
+    """Trích xuất thông tin video YouTube, phân loại các định dạng Video MP4 & Audio MP3 siêu nhanh."""
     clean_url = clean_youtube_url(url)
     
     video_id = ""
@@ -417,46 +417,43 @@ def extract_youtube_media(url: str) -> dict:
     view_count = "N/A"
     thumbnail = f"https://i.ytimg.com/vi/{video_id}/maxresdefault.jpg" if video_id else ""
 
-    client_candidates = [
-        ['tv_embedded', 'android_vr'],
-        ['android', 'mweb'],
-        ['ios', 'web_creator']
-    ]
-    
-    extracted_via_ytdlp = False
-    for clients in client_candidates:
-        try:
-            ydl_opts = get_yt_opts({
-                'skip_download': True,
-                'extractor_args': {
-                    'youtube': {
-                        'player_client': clients,
-                        'player_skip': ['webpage', 'configs']
-                    }
-                }
-            })
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(clean_url, download=False)
-                if info:
-                    if "entries" in info and info["entries"]:
-                        info = info["entries"][0]
-                    title = info.get('title', title)
-                    uploader = info.get('uploader', uploader)
-                    duration = info.get('duration', duration)
-                    view_count = f"{info.get('view_count', 0):,}" if info.get('view_count') else "N/A"
-                    thumbnail = info.get('thumbnail', thumbnail)
-                    extracted_via_ytdlp = True
-                    break
-        except Exception:
-            continue
-
-    if not extracted_via_ytdlp and video_id:
+    # Bước 1: Trích xuất siêu nhanh qua oEmbed API (không bao giờ bị bot block, phản hồi tức thì < 200ms)
+    if video_id:
         oembed_data = extract_via_oembed(video_id)
         if oembed_data:
             title = oembed_data.get("title", title)
             uploader = oembed_data.get("uploader", uploader)
             thumbnail = oembed_data.get("thumbnail", thumbnail)
-            duration = 0
+
+    # Bước 2: Thử lấy thêm thông tin thời lượng và view qua yt-dlp
+    client_candidates = [
+        ['android', 'ios'],
+        None
+    ]
+    
+    for clients in client_candidates:
+        try:
+            extra = {
+                'skip_download': True,
+                'noplaylist': True,
+                'extract_flat': False
+            }
+            if clients:
+                extra['extractor_args'] = {'youtube': {'player_client': clients}}
+            ydl_opts = get_yt_opts(extra)
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(clean_url, download=False)
+                if info:
+                    if "entries" in info and info["entries"]:
+                        info = info["entries"][0]
+                    title = info.get('title') or title
+                    uploader = info.get('uploader') or uploader
+                    duration = info.get('duration') or duration
+                    view_count = f"{info.get('view_count', 0):,}" if info.get('view_count') else "N/A"
+                    thumbnail = info.get('thumbnail') or thumbnail
+                    break
+        except Exception:
+            continue
 
     video_qualities = [
         {"id": "bestvideo+bestaudio/best", "label": "Full HD / 4K Tốt Nhất (MP4)", "format_id": "best", "ext": "mp4"},
