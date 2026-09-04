@@ -7,7 +7,6 @@ import requests
 import yt_dlp
 from urllib.parse import urlparse, parse_qs
 
-
 # Tự động phát hiện vị trí FFmpeg
 FFMPEG_PATH = None
 try:
@@ -22,16 +21,59 @@ HEADERS = {
     "Accept-Language": "en-US,en;q=0.9,vi;q=0.8",
 }
 
-def detect_platform(url: str) -> str:
-    """Tự động nhận diện nền tảng từ URL (X/Twitter hoặc YouTube)."""
-    if not url:
+# Danh sách domain được hỗ trợ
+SUPPORTED_PLATFORMS = {
+    "twitter": ["twitter.com", "x.com", "vxtwitter.com", "fxtwitter.com", "fixupx.com"],
+    "youtube": ["youtube.com", "youtu.be", "music.youtube.com"],
+    "tiktok": ["tiktok.com", "vt.tiktok.com", "vm.tiktok.com"],
+    "douyin": ["douyin.com", "iesdouyin.com", "v.douyin.com"]
+}
+
+# ==================== AN TOÀN & BẢO MẬT (SECURITY & SANITIZATION) ====================
+
+def is_safe_url(url: str) -> bool:
+    """Kiểm tra URL có hợp lệ và ngăn chặn các cuộc tấn công SSRF (IP nội bộ, localhost)."""
+    if not url or not isinstance(url, str):
+        return False
+    try:
+        parsed = urlparse(url.strip())
+        if parsed.scheme not in ["http", "https"]:
+            return False
+        hostname = parsed.hostname
+        if not hostname:
+            return False
+        hostname_lower = hostname.lower()
+        # Chặn localhost & IP riêng tư
+        if hostname_lower in ["localhost", "127.0.0.1", "0.0.0.0", "::1"]:
+            return False
+        if hostname_lower.startswith("192.168.") or hostname_lower.startswith("10.") or hostname_lower.startswith("172."):
+            return False
+        if hostname_lower.endswith(".local") or hostname_lower.endswith(".internal"):
+            return False
+        return True
+    except Exception:
+        return False
+
+def extract_url_from_text(raw_text: str) -> str:
+    """Trích xuất liên kết sạch từ văn bản chia sẻ (ví dụ link chia sẻ từ app TikTok, Douyin)."""
+    if not raw_text:
         return ""
-    url_lower = url.lower()
-    if any(k in url_lower for k in ["youtube.com", "youtu.be", "music.youtube.com"]):
-        return "youtube"
-    if any(k in url_lower for k in ["twitter.com", "x.com", "vxtwitter.com", "fxtwitter.com", "fixupx.com"]):
-        return "twitter"
+    text = raw_text.strip()
+    match = re.search(r'(https?://[^\s<>"\']+)', text)
+    if match:
+        return match.group(1).strip()
+    return text
+
+def detect_platform(url: str) -> str:
+    """Tự động nhận diện nền tảng từ URL (X/Twitter, YouTube, TikTok, Douyin)."""
+    if not url:
+        return "invalid"
+    clean_url = extract_url_from_text(url).lower()
+    for platform, domains in SUPPORTED_PLATFORMS.items():
+        if any(d in clean_url for d in domains):
+            return platform
     return "unknown"
+
 
 # ==================== X / TWITTER EXTRACTOR ====================
 
@@ -215,7 +257,8 @@ def extract_via_vxtwitter(tweet_id: str) -> dict:
 
 def extract_tweet_media(url_or_id: str) -> dict:
     """Trích xuất ảnh và video từ X/Twitter."""
-    tweet_id = extract_tweet_id(url_or_id)
+    clean_url = extract_url_from_text(url_or_id)
+    tweet_id = extract_tweet_id(clean_url)
     if not tweet_id:
         raise ValueError("Không tìm thấy Tweet ID hợp lệ trong liên kết. Vui lòng kiểm tra lại liên kết X.")
 
@@ -233,7 +276,7 @@ def extract_tweet_media(url_or_id: str) -> dict:
     except Exception as e:
         print(f"VxTwitter error: {e}")
 
-    raise ValueError("Không tìm thấy ảnh hoặc video trong bài viết này, hoặc bài viết đang ở chế độ riêng tư.")
+    raise ValueError("Không tìm thấy ảnh hoặc video trong bài viết X này, hoặc bài viết đang ở chế độ riêng tư.")
 
 
 # ==================== YOUTUBE & MP3 EXTRACTOR ====================
@@ -252,23 +295,23 @@ def format_duration(seconds: int) -> str:
         return "0:00"
 
 def clean_youtube_url(url: str) -> str:
-
     """Loại bỏ các tham số playlist, radio mix (&list=, &start_radio=, &index=) để chỉ trích xuất đúng 1 video đích tức thì."""
     if not url:
         return url
-    shorts_match = re.search(r'youtube\.com/shorts/([a-zA-Z0-9_-]+)', url)
+    clean_url = extract_url_from_text(url)
+    shorts_match = re.search(r'youtube\.com/shorts/([a-zA-Z0-9_-]+)', clean_url)
     if shorts_match:
         return f"https://www.youtube.com/watch?v={shorts_match.group(1)}"
-    ytbe_match = re.search(r'youtu\.be/([a-zA-Z0-9_-]+)', url)
+    ytbe_match = re.search(r'youtu\.be/([a-zA-Z0-9_-]+)', clean_url)
     if ytbe_match:
         return f"https://www.youtube.com/watch?v={ytbe_match.group(1)}"
-    watch_match = re.search(r'[?&]v=([a-zA-Z0-9_-]+)', url)
+    watch_match = re.search(r'[?&]v=([a-zA-Z0-9_-]+)', clean_url)
     if watch_match:
         return f"https://www.youtube.com/watch?v={watch_match.group(1)}"
-    return url
+    return clean_url
 
 def get_yt_opts(extra_opts=None):
-    """Tạo cấu hình yt-dlp tối ưu vượt qua bot-check của YouTube (kể cả trên IP Datacenter Render)."""
+    """Tạo cấu hình yt-dlp tối ưu vượt qua bot-check của YouTube."""
     cookies_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.txt")
     cookies_env = os.environ.get("YOUTUBE_COOKIES") or os.environ.get("COOKIES")
     if cookies_env and not os.path.exists(cookies_file):
@@ -302,7 +345,7 @@ def get_yt_opts(extra_opts=None):
     return opts
 
 def extract_via_oembed(video_id: str) -> dict:
-    """Trích xuất thông tin tiêu đề, tác giả, thumbnail trực tiếp qua YouTube oEmbed API (không bao giờ bị bot check)."""
+    """Trích xuất thông tin tiêu đề, tác giả, thumbnail trực tiếp qua YouTube oEmbed API."""
     try:
         url = f"https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={video_id}&format=json"
         resp = requests.get(url, headers=HEADERS, timeout=8)
@@ -318,7 +361,7 @@ def extract_via_oembed(video_id: str) -> dict:
     return None
 
 def convert_via_cloud_api(video_url: str, target_type: str, quality_id: str, output_path: str) -> str:
-    """Tải và chuyển đổi MP3/MP4 qua Cloud Converter Server khi yt-dlp bị Render IP chặn."""
+    """Tải và chuyển đổi MP3/MP4 qua Cloud Converter Server khi yt-dlp bị chặn."""
     fmt = "mp3" if target_type == "mp3" else ("1080" if "1080" in quality_id else "720")
     api_url = f"https://loader.to/ajax/download.php?button=1&start=1&end=1&format={fmt}&url={video_url}"
     
@@ -332,7 +375,7 @@ def convert_via_cloud_api(video_url: str, target_type: str, quality_id: str, out
         raise ValueError("Không nhận được luồng chuyển đổi từ máy chủ.")
 
     download_url = None
-    for _ in range(40): # Đợi tối đa 60 giây cho các file nhạc dài
+    for _ in range(40):
         time.sleep(1.5)
         try:
             pr_res = requests.get(progress_url, headers=HEADERS, timeout=8).json()
@@ -348,7 +391,6 @@ def convert_via_cloud_api(video_url: str, target_type: str, quality_id: str, out
     if not download_url:
         raise ValueError("Quá trình chuyển đổi vượt quá thời gian cho phép. Vui lòng thử lại!")
 
-    # Tải file từ download_url về output_path
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     ext = "mp3" if target_type == "mp3" else "mp4"
     base_output = os.path.splitext(output_path)[0]
@@ -358,10 +400,9 @@ def convert_via_cloud_api(video_url: str, target_type: str, quality_id: str, out
     return final_file
 
 def extract_youtube_media(url: str) -> dict:
-    """Trích xuất thông tin video YouTube, phân loại các định dạng Video MP4 & Audio MP3 với cơ chế đa tầng."""
+    """Trích xuất thông tin video YouTube, phân loại các định dạng Video MP4 & Audio MP3."""
     clean_url = clean_youtube_url(url)
     
-    # Lấy video ID
     video_id = ""
     v_match = re.search(r'[?&]v=([a-zA-Z0-9_-]+)', clean_url)
     if v_match:
@@ -373,7 +414,6 @@ def extract_youtube_media(url: str) -> dict:
     view_count = "N/A"
     thumbnail = f"https://i.ytimg.com/vi/{video_id}/maxresdefault.jpg" if video_id else ""
 
-    # Bước 1: Thử trích xuất qua yt-dlp
     client_candidates = [
         ['tv_embedded', 'android_vr'],
         ['android', 'mweb'],
@@ -407,7 +447,6 @@ def extract_youtube_media(url: str) -> dict:
         except Exception:
             continue
 
-    # Bước 2: Nếu yt-dlp bị Render IP chặn, fallback sang YouTube Official oEmbed API (không bao giờ bị bot check)
     if not extracted_via_ytdlp and video_id:
         oembed_data = extract_via_oembed(video_id)
         if oembed_data:
@@ -446,20 +485,19 @@ def extract_youtube_media(url: str) -> dict:
     }
 
 def download_youtube_file(url: str, target_type: str, quality_id: str, output_path: str, progress_callback=None) -> str:
-    """Tải và chuyển đổi YouTube video hoặc MP3 audio với hook tiến trình thời gian thực."""
+    """Tải và chuyển đổi YouTube video hoặc MP3 audio."""
     clean_url = clean_youtube_url(url)
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     base_output = os.path.splitext(output_path)[0]
 
-    # Cách 1: Thử tải qua yt-dlp với Progress Hook
     try:
         extra_opts = {
             'outtmpl': f"{base_output}.%(ext)s",
             'noplaylist': True,
             'retries': 5,
             'fragment_retries': 5,
-            'buffersize': 32768,          # 32KB buffer
-            'http_chunk_size': 10485760,  # 10MB chunk
+            'buffersize': 32768,
+            'http_chunk_size': 10485760,
         }
         
         if progress_callback:
@@ -499,30 +537,174 @@ def download_youtube_file(url: str, target_type: str, quality_id: str, output_pa
     except Exception as e:
         print(f"yt-dlp download failed, switching to cloud converter: {e}")
 
-    # Cách 2: Tự động fallback sang Cloud Converter Server
     return convert_via_cloud_api(clean_url, target_type, quality_id, output_path)
 
 
+# ==================== TIKTOK & DOUYIN EXTRACTOR ====================
+
+def extract_tiktok_douyin_media(raw_url: str) -> dict:
+    """
+    Trích xuất Video Không Logo, MP3 Nhạc nền, và Toàn bộ Album ảnh từ TikTok & Douyin.
+    """
+    clean_url = extract_url_from_text(raw_url)
+    if not clean_url:
+        raise ValueError("Vui lòng nhập liên kết TikTok hoặc Douyin hợp lệ.")
+
+    platform_type = "douyin" if any(d in clean_url.lower() for d in ["douyin.com", "iesdouyin.com"]) else "tiktok"
+
+    # Bước 1: Trích xuất qua TikWM API (Hỗ trợ cực mạnh Video Không Logo, MP3 & Album Ảnh)
+    try:
+        resp = requests.post(
+            "https://www.tikwm.com/api/",
+            data={"url": clean_url, "hd": 1},
+            headers=HEADERS,
+            timeout=12
+        )
+        if resp.status_code == 200:
+            res_json = resp.json()
+            if res_json.get("code") == 0:
+                data = res_json.get("data", {})
+                
+                # Thông tin tác giả
+                author = data.get("author", {})
+                author_name = author.get("nickname") or author.get("unique_id") or "TikTok User"
+                author_username = author.get("unique_id") or "user"
+                author_avatar = author.get("avatar") or "https://p16-sign-sg.tiktokcdn.com/tos-alisg-avt-0068/default.jpeg"
+                
+                title = data.get("title") or "TikTok Media"
+                item_id = str(data.get("id") or int(time.time()))
+                duration = data.get("duration", 0)
+                duration_str = format_duration(duration) if duration else "HD"
+
+                # Video links
+                video_url = data.get("hdplay") or data.get("play") or ""
+                # Watermarked fallback
+                wm_video_url = data.get("wmplay") or ""
+                cover = data.get("cover") or data.get("origin_cover") or ""
+
+                # Music / MP3 link
+                music_url = data.get("music") or ""
+                music_info = data.get("music_info", {})
+                music_title = music_info.get("title") or "Âm thanh gốc"
+                music_author = music_info.get("author") or author_name
+
+                # Images / Photo Slideshow (Dành cho bài viết dạng Album ảnh)
+                raw_images = data.get("images") or []
+                photos = []
+                if raw_images and isinstance(raw_images, list):
+                    for idx, img_url in enumerate(raw_images):
+                        photos.append({
+                            "index": idx + 1,
+                            "type": "image",
+                            "preview_url": img_url,
+                            "download_url": img_url,
+                            "alt": f"Photo {idx + 1}"
+                        })
+
+                has_images = len(photos) > 0
+                has_video = bool(video_url) and not has_images
+                has_music = bool(music_url)
+
+                return {
+                    "platform": platform_type,
+                    "id": item_id,
+                    "title": title,
+                    "author_name": author_name,
+                    "author_username": author_username,
+                    "author_avatar": author_avatar,
+                    "cover": cover,
+                    "duration": duration,
+                    "duration_str": duration_str,
+                    "has_video": has_video,
+                    "video_url": video_url,
+                    "video_wm_url": wm_video_url,
+                    "has_music": has_music,
+                    "music_url": music_url,
+                    "music_title": music_title,
+                    "music_author": music_author,
+                    "has_images": has_images,
+                    "photos": photos,
+                    "url": clean_url
+                }
+    except Exception as e:
+        print(f"TikWM extraction error: {e}")
+
+    # Bước 2: Fallback qua LoveTik API nếu là TikTok video
+    if platform_type == "tiktok":
+        try:
+            r_love = requests.post(
+                "https://lovetik.com/api/ajax/search",
+                data={"query": clean_url},
+                headers=HEADERS,
+                timeout=8
+            )
+            if r_love.status_code == 200:
+                ld = r_love.json()
+                if ld.get("status") == "ok":
+                    links = ld.get("links", [])
+                    video_url = ""
+                    music_url = ""
+                    for l in links:
+                        if l.get("t") == "Nowatermark":
+                            video_url = l.get("a", "")
+                        elif l.get("t") == "MP3":
+                            music_url = l.get("a", "")
+                    
+                    if video_url:
+                        return {
+                            "platform": "tiktok",
+                            "id": ld.get("vid", str(int(time.time()))),
+                            "title": ld.get("desc") or "TikTok Video",
+                            "author_name": ld.get("author", "TikTok Creator"),
+                            "author_username": ld.get("author", "user"),
+                            "author_avatar": ld.get("cover", ""),
+                            "cover": ld.get("cover", ""),
+                            "duration_str": "HD",
+                            "has_video": True,
+                            "video_url": video_url,
+                            "has_music": bool(music_url),
+                            "music_url": music_url,
+                            "music_title": "Âm thanh gốc",
+                            "music_author": ld.get("author", "TikTok Creator"),
+                            "has_images": False,
+                            "photos": [],
+                            "url": clean_url
+                        }
+        except Exception as e:
+            print(f"LoveTik fallback error: {e}")
+
+    raise ValueError(f"Không thể trích xuất {platform_type.capitalize()}. Vui lòng kiểm tra lại liên kết hoặc thử liên kết khác!")
 
 
 # ==================== MAIN DISPATCHER ====================
 
 def extract_media(url: str) -> dict:
-    """Tự động phân loại và trích xuất từ X/Twitter hoặc YouTube."""
+    """Tự động phân loại và trích xuất từ X/Twitter, YouTube, TikTok hoặc Douyin."""
+    if not is_safe_url(url):
+        clean_url = extract_url_from_text(url)
+        if not is_safe_url(clean_url):
+            raise ValueError("Liên kết không an toàn hoặc không hợp lệ. Vui lòng kiểm tra lại!")
+
     platform = detect_platform(url)
+    
     if platform == "youtube":
         return extract_youtube_media(url)
     elif platform == "twitter":
         return extract_tweet_media(url)
+    elif platform in ["tiktok", "douyin"]:
+        return extract_tiktok_douyin_media(url)
     else:
-        # Thử X trước, sau đó YouTube
+        # Thử lần lượt các nền tảng
         try:
-            return extract_tweet_media(url)
+            return extract_tiktok_douyin_media(url)
         except Exception:
             try:
-                return extract_youtube_media(url)
+                return extract_tweet_media(url)
             except Exception:
-                raise ValueError("Liên kết không được hỗ trợ. Vui lòng nhập link từ X (Twitter) hoặc YouTube!")
+                try:
+                    return extract_youtube_media(url)
+                except Exception:
+                    raise ValueError("Định dạng liên kết không được hỗ trợ! Hiện tại công cụ hỗ trợ: X (Twitter), YouTube, TikTok và Douyin.")
 
 def download_file(url: str, save_path: str, chunk_size: int = 65536) -> str:
     """Tải một file từ URL trực tiếp và lưu vào đĩa."""

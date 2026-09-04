@@ -7,16 +7,19 @@ import webbrowser
 import threading
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify, send_file, Response, stream_with_context, after_this_request
+import requests
 
 DOWNLOAD_THREADS = {}
-import requests
+
 from downloader import (
     extract_media, 
     download_file, 
     download_youtube_file, 
     optimize_image_url, 
     HEADERS,
-    detect_platform
+    detect_platform,
+    is_safe_url,
+    extract_url_from_text
 )
 
 app = Flask(__name__)
@@ -44,6 +47,11 @@ def save_history_item(item):
     with open(HISTORY_FILE, "w", encoding="utf-8") as f:
         json.dump(history, f, ensure_ascii=False, indent=2)
 
+def sanitize_filename(filename: str) -> str:
+    """Làm sạch tên file, chống tấn công Path Traversal và ký tự không hợp lệ."""
+    clean = "".join(c for c in filename if c.isalnum() or c in (' ', '_', '-', '.')).strip()
+    return clean.replace("..", "_")[:80] or "media_file"
+
 @app.errorhandler(500)
 def handle_500(e):
     return jsonify({"success": False, "error": "Lỗi máy chủ nội bộ. Vui lòng thử lại!"}), 500
@@ -62,27 +70,35 @@ def index():
 
 @app.after_request
 def add_security_headers(response):
+    """Cung cấp các tiêu đề bảo mật cao cấp (CSP, HSTS, X-Content-Type-Options, etc.)."""
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
         "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://kit.fontawesome.com https://ka-f.fontawesome.com; "
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com https://ka-f.fontawesome.com; "
         "font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com https://ka-f.fontawesome.com data:; "
-        "img-src 'self' data: https: blob:; "
-        "media-src 'self' blob: https://video.twimg.com https://pbs.twimg.com https://t.co; "
-        "connect-src 'self' https://ka-f.fontawesome.com https://cdnjs.cloudflare.com https://fonts.googleapis.com; "
+        "img-src 'self' data: https: blob: http:; "
+        "media-src 'self' blob: https: http:; "
+        "connect-src 'self' https://ka-f.fontawesome.com https://cdnjs.cloudflare.com https://fonts.googleapis.com https: http:; "
     )
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     return response
 
 
 @app.route("/api/extract", methods=["POST"])
 def api_extract():
     data = request.get_json(silent=True) or {}
-    url = data.get("url", "").strip()
-    if not url:
-        return jsonify({"success": False, "error": "Vui lòng nhập đường link X (Twitter) hoặc YouTube!"}), 400
+    raw_url = data.get("url", "").strip()
+    if not raw_url:
+        return jsonify({"success": False, "error": "Vui lòng nhập đường link X (Twitter), YouTube, TikTok hoặc Douyin!"}), 400
+
+    clean_url = extract_url_from_text(raw_url)
+    if not clean_url or not is_safe_url(clean_url):
+        return jsonify({"success": False, "error": "Định dạng liên kết không an toàn hoặc không hợp lệ!"}), 400
 
     try:
-        media_info = extract_media(url)
+        media_info = extract_media(clean_url)
         return jsonify({"success": True, "data": media_info})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 400
@@ -98,11 +114,10 @@ def api_download_server():
     # 1. Xử lý tải YouTube (Video MP4 hoặc MP3)
     if platform == "youtube":
         yt_url = data.get("url")
-        target_type = data.get("type", "video") # 'video' hoặc 'mp3'
+        target_type = data.get("type", "video")
         quality_id = data.get("quality_id", "best")
         title = data.get("title", "YouTube_Media")
-        # Chuẩn hóa tên file
-        clean_title = "".join(c for c in title if c.isalnum() or c in (' ', '_', '-')).strip()[:40]
+        clean_title = sanitize_filename(title)[:40]
         ext = "mp3" if target_type == "mp3" else "mp4"
         filename = f"YT_{clean_title}_{timestamp}.{ext}"
         filepath = os.path.join(DOWNLOADS_DIR, filename)
@@ -133,10 +148,52 @@ def api_download_server():
         except Exception as e:
             return jsonify({"success": False, "error": f"Lỗi tải YouTube: {str(e)}"}), 500
 
-    # 2. Xử lý tải X / Twitter
+    # 2. Xử lý tải TikTok & Douyin
+    elif platform in ["tiktok", "douyin"]:
+        items = data.get("items", [])
+        title = data.get("title", "TikTok_Media")
+        clean_title = sanitize_filename(title)[:40]
+        author = sanitize_filename(data.get("author", "creator"))[:20]
+
+        if not items:
+            return jsonify({"success": False, "error": "Không có tệp nào để tải!"}), 400
+
+        saved_files = []
+        for idx, item in enumerate(items):
+            url = item.get("url")
+            mtype = item.get("type", "video")
+            ext = item.get("ext", "mp4")
+            if not url:
+                continue
+
+            filename = f"{platform.upper()}_{author}_{clean_title}_{idx+1}_{timestamp}.{ext}"
+            filepath = os.path.join(DOWNLOADS_DIR, filename)
+
+            try:
+                download_file(url, filepath)
+                saved_files.append({
+                    "filename": filename,
+                    "filepath": filepath,
+                    "type": mtype,
+                    "size_bytes": os.path.getsize(filepath)
+                })
+            except Exception as e:
+                print(f"Lỗi tải {url}: {e}")
+
+        if saved_files:
+            return jsonify({
+                "success": True,
+                "message": f"Đã tải thành công {len(saved_files)} tệp {platform.capitalize()}!",
+                "files": saved_files,
+                "download_dir": DOWNLOADS_DIR
+            })
+        else:
+            return jsonify({"success": False, "error": "Không thể tải được tệp nào. Vui lòng thử lại!"}), 500
+
+    # 3. Xử lý tải X / Twitter
     items = data.get("items", [])
     tweet_id = data.get("tweet_id", "tweet")
-    author = data.get("author", "unknown")
+    author = sanitize_filename(data.get("author", "unknown"))[:20]
 
     if not items:
         return jsonify({"success": False, "error": "Không có tệp nào để tải!"}), 400
@@ -148,7 +205,7 @@ def api_download_server():
         if not url:
             continue
         
-        ext = "mp4" if mtype == "video" else ("gif" if mtype == "gif" else "jpg")
+        ext = "mp4" if mtype == "video" else ("gif" if mtype == "gif" else "png")
         if ".png" in url:
             ext = "png"
         elif ".mp4" in url:
@@ -194,26 +251,26 @@ def api_download_zip():
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
     data = request.get_json() or {}
-    items = data.get("items", [])   # [{url, name, ext}, ...]
-    zip_name = data.get("zip_name", "X_media")
+    items = data.get("items", [])
+    zip_name = sanitize_filename(data.get("zip_name", "Media_Pro_Pack"))
 
     if not items:
         return jsonify({"success": False, "error": "Không có tệp nào để tải!"}), 400
 
     def fetch_one(item):
         url = item.get("url")
-        name = item.get("name", "file")
-        ext = item.get("ext", "jpg")
+        name = sanitize_filename(item.get("name", "file"))
+        ext = item.get("ext", "png")
         try:
             resp = requests.get(url, headers=HEADERS, timeout=20, stream=True)
             resp.raise_for_status()
             return (f"{name}.{ext}", resp.content)
-        except Exception as e:
+        except Exception:
             return (f"{name}.{ext}", None)
 
     zip_buf = io.BytesIO()
     with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_STORED) as zf:
-        with ThreadPoolExecutor(max_workers=min(len(items), 6)) as pool:
+        with ThreadPoolExecutor(max_workers=min(len(items), 8)) as pool:
             futures = {pool.submit(fetch_one, item): item for item in items}
             for future in as_completed(futures):
                 filename, content = future.result()
@@ -229,23 +286,35 @@ def api_download_zip():
 
 @app.route("/api/stream-file")
 def api_stream_file():
-    """Chuyển tiếp luồng tải trực tiếp về trình duyệt."""
+    """Chuyển tiếp luồng tải trực tiếp về trình duyệt với đầy đủ header chống block."""
     file_url = request.args.get("url")
-    custom_name = request.args.get("name", "media")
-    ext = request.args.get("ext", "jpg")
+    custom_name = sanitize_filename(request.args.get("name", "media"))
+    ext = sanitize_filename(request.args.get("ext", "png"))
 
-    if not file_url:
-        return "Thiếu URL tệp", 400
+    if not file_url or not is_safe_url(file_url):
+        return "URL tệp không hợp lệ", 400
 
     filename = f"{custom_name}.{ext}"
 
-    req = requests.get(file_url, headers=HEADERS, stream=True)
-    response = Response(
-        stream_with_context(req.iter_content(chunk_size=65536)),
-        content_type=req.headers.get("content-type", "application/octet-stream")
-    )
-    response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
-    return response
+    req_headers = dict(HEADERS)
+    if "tiktok" in file_url or "muscdn" in file_url or "byteoversea" in file_url:
+        req_headers["Referer"] = "https://www.tiktok.com/"
+    elif "douyin" in file_url:
+        req_headers["Referer"] = "https://www.douyin.com/"
+
+    try:
+        req = requests.get(file_url, headers=req_headers, stream=True, timeout=30)
+        req.raise_for_status()
+        
+        content_type = req.headers.get("content-type", "application/octet-stream")
+        response = Response(
+            stream_with_context(req.iter_content(chunk_size=65536)),
+            content_type=content_type
+        )
+        response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
+    except Exception as e:
+        return f"Lỗi tải luồng tệp: {str(e)}", 500
 
 def write_progress(task_id, data):
     if not task_id:
@@ -281,7 +350,7 @@ def clean_progress(task_id):
 
 @app.route("/api/progress/<task_id>")
 def api_get_progress(task_id):
-    """Lấy tiến trình tải tệp thời gian thực (chia sẻ qua mọi Gunicorn workers)."""
+    """Lấy tiến trình tải tệp thời gian thực."""
     info = read_progress(task_id)
     if not info:
         info = {
@@ -306,8 +375,7 @@ def api_start_download():
     if not yt_url or not task_id:
         return jsonify({"success": False, "error": "Thiếu URL hoặc task_id"}), 400
 
-    clean_title = "".join(c for c in title if c.isalnum() or c in (' ', '_', '-')).strip()[:40] or "youtube"
-    timestamp = int(time.time())
+    clean_title = sanitize_filename(title)[:40] or "youtube"
     ext = "mp3" if target_type == "mp3" else "mp4"
     temp_filename = f"dl_{task_id}.{ext}"
     temp_path = os.path.join(DOWNLOADS_DIR, temp_filename)
@@ -364,15 +432,14 @@ def api_start_download():
 
 @app.route("/api/stream-youtube")
 def api_stream_youtube():
-    """Gửi file đã tải xong về trình duyệt."""
+    """Gửi file YouTube đã tải xong về trình duyệt."""
     task_id = request.args.get("task_id", "")
-    # Compat: nếu không có task_id, dùng luồng cũ (đồng bộ)
     if not task_id:
         yt_url = request.args.get("url")
         target_type = request.args.get("type", "mp3")
         quality = request.args.get("quality", "320")
         title = request.args.get("title", "youtube_media")
-        clean_title = "".join(c for c in title if c.isalnum() or c in (' ', '_', '-')).strip()[:40] or "youtube"
+        clean_title = sanitize_filename(title)[:40] or "youtube"
         ext = "mp3" if target_type == "mp3" else "mp4"
         temp_path = os.path.join(DOWNLOADS_DIR, f"sync_{int(time.time())}.{ext}")
         try:
@@ -383,7 +450,6 @@ def api_stream_youtube():
 
     info = DOWNLOAD_THREADS.get(task_id)
     if not info:
-        # Chờ tối đa 5 phút (polling từ browser)
         for _ in range(600):
             time.sleep(0.5)
             info = DOWNLOAD_THREADS.get(task_id)
@@ -415,7 +481,6 @@ def api_stream_youtube():
     return send_file(final_path, as_attachment=True, download_name=f"{clean_title}.{ext}")
 
 
-
 @app.route("/api/save-cookies", methods=["POST"])
 def api_save_cookies():
     """Lưu cookies người dùng nhập từ bảng Tùy Chỉnh vào file cookies.txt."""
@@ -435,32 +500,6 @@ def api_save_cookies():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
-@app.route("/api/open-folder", methods=["POST"])
-def api_open_folder():
-
-    """Mở thư mục downloads trên Windows Explorer."""
-    try:
-        if os.environ.get("RENDER"):
-            return jsonify({"success": False, "error": "Chức năng mở thư mục chỉ khả dụng khi chạy ứng dụng trên máy tính cá nhân!"}), 400
-        
-        if sys.platform == "win32":
-            os.startfile(DOWNLOADS_DIR)
-        elif sys.platform == "darwin":
-            subprocess.run(["open", DOWNLOADS_DIR])
-        else:
-            subprocess.run(["xdg-open", DOWNLOADS_DIR])
-        return jsonify({"success": True, "message": "Đã mở thư mục Downloads"})
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
-
-@app.route("/api/history", methods=["GET", "DELETE"])
-def api_history():
-    if request.method == "DELETE":
-        if os.path.exists(HISTORY_FILE):
-            os.remove(HISTORY_FILE)
-        return jsonify({"success": True, "message": "Đã xóa lịch sử tải xuống"})
-    return jsonify({"success": True, "history": load_history()})
-
 def open_browser():
     time.sleep(1.2)
     webbrowser.open("http://127.0.0.1:5000")
@@ -470,7 +509,7 @@ if __name__ == "__main__":
     is_render = os.environ.get("RENDER") is not None
 
     print("=" * 60)
-    print("  🚀 X & YouTube Media Pro Saver đang khởi chạy...")
+    print("  🚀 Universal Media Pro Saver (X, YouTube, TikTok, Douyin) đang chạy...")
     print(f"  🌐 Cổng lắng nghe (Port): {port}")
     print("  📁 Thư mục lưu mặc định:", DOWNLOADS_DIR)
     print("=" * 60)

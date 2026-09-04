@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Universal Media Pro Saver | Tải X & YouTube MP4 / MP3</title>
-    <meta name="description" content="Tải ảnh gốc :orig, video 4K từ X (Twitter) và tải Video HD / Chuyển đổi MP3 320kbps từ YouTube cực nhanh, sắc nét.">
+    <title>Media Pro Saver | Tải X, YouTube, TikTok & Douyin Không Logo</title>
+    <meta name="description" content="Công cụ tải ảnh gốc :orig từ X, video 4K YouTube & MP3 320kbps, video TikTok & Douyin không logo, tải nhạc MP3 và album ảnh chất lượng cao.">
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
     <!-- Font Awesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <!-- Custom CSS -->
@@ -18,6 +18,7 @@
     <!-- Background Ambient Glows -->
     <div class="ambient-glow glow-1"></div>
     <div class="ambient-glow glow-2"></div>
+    <div class="ambient-glow glow-3"></div>
     <div class="ambient-grid-overlay"></div>
 
     <div class="app-container">
@@ -28,26 +29,20 @@
                     <div class="brand-logo">
                         <i class="fa-solid fa-bolt-lightning"></i>
                     </div>
-                    <div class="status-indicator" title="Online"></div>
+                    <div class="status-indicator" title="Hệ thống sẵn sàng"></div>
                 </div>
                 <div class="brand-info">
                     <div class="brand-title-row">
                         <h1>Media <span class="gradient-text">Pro Saver</span></h1>
-                        <span class="version-badge">PRO</span>
+                        <span class="version-badge">ULTRA 4.0</span>
                     </div>
-                    <p class="subtitle">Tải ảnh gốc <strong>:orig</strong>, Video <strong>4K</strong> & <strong>MP3 320k</strong></p>
+                    <p class="subtitle">Tải ảnh gốc <strong>:orig</strong>, Video <strong>Không Logo</strong> & <strong>MP3 320k</strong></p>
                 </div>
             </div>
             
             <div class="header-actions">
-                <button id="btn-toggle-settings" class="btn btn-secondary btn-icon-only" title="Tùy chỉnh tối ưu">
+                <button id="btn-toggle-settings" class="btn btn-secondary btn-icon-only" title="Tùy chỉnh chất lượng & thiết lập">
                     <i class="fa-solid fa-sliders"></i>
-                </button>
-                <button id="btn-open-folder" class="btn btn-secondary btn-icon-only" title="Mở thư mục lưu">
-                    <i class="fa-solid fa-folder-open"></i>
-                </button>
-                <button id="btn-toggle-history" class="btn btn-secondary btn-icon-only" title="Lịch sử tải xuống">
-                    <i class="fa-solid fa-clock-rotate-left"></i>
                 </button>
             </div>
         </header>
@@ -71,29 +66,52 @@
                             <i class="fa-brands fa-youtube"></i>
                             <span>YouTube</span>
                         </button>
+                        <button class="tab-btn" data-platform="tiktok">
+                            <i class="fa-brands fa-tiktok"></i>
+                            <span>TikTok</span>
+                        </button>
+                        <button class="tab-btn" data-platform="douyin">
+                            <i class="fa-solid fa-compact-disc"></i>
+                            <span>Douyin (抖音)</span>
+                        </button>
                     </div>
                 </div>
 
                 <form id="extract-form" class="search-form">
-                    <div class="input-wrapper">
+                    <div class="input-wrapper" id="main-input-wrapper">
                         <div class="input-glow-bg"></div>
-                        <i class="fa-solid fa-link input-icon"></i>
+                        <i class="fa-solid fa-link input-icon" id="input-platform-icon"></i>
                         <input 
                             type="text" 
                             id="tweet-url-input" 
-                            placeholder="Dán link X (Twitter) hoặc YouTube..." 
+                            placeholder="Dán link X (Twitter), YouTube, TikTok hoặc Douyin..." 
                             autocomplete="off"
                             spellcheck="false"
                             required
                         >
                         <div class="input-actions">
-                            <button type="button" id="btn-clear" class="action-chip btn-clear hidden" title="Xóa">
+                            <button type="button" id="btn-clear" class="action-chip btn-clear hidden" title="Xóa nội dung">
                                 <i class="fa-solid fa-xmark"></i>
                             </button>
                             <button type="button" id="btn-paste" class="action-chip btn-paste-glow" title="Dán từ Clipboard">
                                 <i class="fa-regular fa-clipboard"></i>
-                                <span>Dán</span>
+                                <span>Dán link</span>
                             </button>
+                        </div>
+                    </div>
+
+                    <!-- Instant Format Detection Badge (0ms detection) -->
+                    <div id="format-detected-badge" class="format-detected-badge hidden">
+                        <i class="fa-solid fa-circle-check"></i>
+                        <span id="detected-text">Đã phát hiện liên kết hợp lệ</span>
+                    </div>
+
+                    <!-- Instant Warning Alert Box (Khi dán link sai định dạng) -->
+                    <div id="format-warning-box" class="format-warning-box hidden">
+                        <div class="warning-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                        <div class="warning-content">
+                            <strong>Định dạng liên kết không được hỗ trợ!</strong>
+                            <p>Vui lòng dán liên kết từ <strong>X (Twitter)</strong>, <strong>YouTube</strong>, <strong>TikTok</strong> hoặc <strong>Douyin</strong>.</p>
                         </div>
                     </div>
 
@@ -104,16 +122,17 @@
                         </span>
                         <span class="btn-loader hidden">
                             <i class="fa-solid fa-circle-notch fa-spin"></i>
-                            <span>Đang trích xuất...</span>
+                            <span>Đang trích xuất dữ liệu...</span>
                         </span>
                     </button>
                 </form>
 
                 <!-- Clean Compact Feature Tags -->
                 <div class="feature-pills">
-                    <span class="pill"><i class="fa-brands fa-x-twitter"></i> Ảnh <strong>:orig</strong></span>
-                    <span class="pill"><i class="fa-solid fa-film"></i> Video <strong>1080p/4K</strong></span>
-                    <span class="pill"><i class="fa-solid fa-music"></i> <strong>MP3 320k</strong></span>
+                    <span class="pill pill-x"><i class="fa-brands fa-x-twitter"></i> X <strong>:orig & 4K</strong></span>
+                    <span class="pill pill-yt"><i class="fa-brands fa-youtube"></i> YouTube <strong>MP4 & MP3</strong></span>
+                    <span class="pill pill-tt"><i class="fa-brands fa-tiktok"></i> TikTok <strong>No-Logo & MP3</strong></span>
+                    <span class="pill pill-dy"><i class="fa-solid fa-compact-disc"></i> Douyin <strong>Album Ảnh</strong></span>
                 </div>
             </section>
 
@@ -139,7 +158,7 @@
             </div>
         </main>
 
-        <!-- Download Progress Active Modal -->
+        <!-- Download Progress Active Modal (YouTube) -->
         <div id="download-progress-modal" class="modal-backdrop hidden">
             <div class="modal-card glass-panel progress-card">
                 <div class="progress-header">
@@ -171,7 +190,7 @@
                 </div>
 
                 <div class="progress-footer">
-                    <p class="progress-hint"><i class="fa-solid fa-circle-info"></i> Tệp sẽ tự động lưu vào mục <strong>Downloads / Tệp đã tải về</strong> trên máy của bạn.</p>
+                    <p class="progress-hint"><i class="fa-solid fa-circle-info"></i> Tệp sẽ tự động lưu vào mục <strong>Downloads</strong> trên thiết bị của bạn.</p>
                     <button id="btn-close-progress" class="btn btn-sm btn-secondary">
                         <i class="fa-solid fa-check"></i> Đã hiểu
                     </button>
@@ -179,9 +198,7 @@
             </div>
         </div>
 
-
         <!-- Settings Modal (Tùy Chỉnh Tối Ưu) -->
-
         <div id="settings-modal" class="modal-backdrop hidden">
             <div class="modal-card glass-panel settings-card">
                 <div class="modal-header">
@@ -191,7 +208,7 @@
                         </div>
                         <div>
                             <h3>Tùy Chỉnh Tối Ưu</h3>
-                            <p class="modal-subtitle">Cá nhân hóa chất lượng tải</p>
+                            <p class="modal-subtitle">Cá nhân hóa chất lượng tải xuống</p>
                         </div>
                     </div>
                     <button id="btn-close-settings" class="btn-close" title="Đóng">
@@ -202,7 +219,7 @@
                     <div class="setting-group">
                         <div class="setting-info">
                             <label><i class="fa-solid fa-music text-accent"></i> Chất lượng MP3 mặc định</label>
-                            <span class="setting-desc">Tự chọn bitrate khi tải MP3</span>
+                            <span class="setting-desc">Tự chọn bitrate ưu tiên khi tải MP3</span>
                         </div>
                         <select id="setting-default-mp3" class="select-quality custom-select">
                             <option value="320">320 kbps (Cực cao, Lossless)</option>
@@ -217,17 +234,17 @@
                             <span class="setting-desc">Chất lượng ưu tiên khi tải MP4</span>
                         </div>
                         <select id="setting-default-video" class="select-quality custom-select">
-                            <option value="best">Cao nhất (1080p / 4K)</option>
+                            <option value="best">Cao nhất (1080p / 4K / HD Gốc)</option>
                             <option value="1080">1080p Full HD</option>
                             <option value="720">720p HD</option>
-                            <option value="480">480p</option>
+                            <option value="480">480p Tiết kiệm</option>
                         </select>
                     </div>
 
                     <div class="setting-group toggle-group">
                         <div class="setting-info">
                             <label><i class="fa-solid fa-clipboard-check text-success"></i> Tự phân tích khi dán</label>
-                            <span class="setting-desc">Tự kích hoạt phân tích khi bấm Dán</span>
+                            <span class="setting-desc">Tự kích hoạt phân tích ngay khi bấm nút Dán</span>
                         </div>
                         <label class="switch">
                             <input type="checkbox" id="setting-auto-extract" checked>
@@ -238,7 +255,7 @@
                     <div class="setting-group vertical-group">
                         <div class="setting-info">
                             <label><i class="fa-solid fa-cookie-bite text-warning"></i> YouTube Cookies (Video 18+)</label>
-                            <span class="setting-desc">Dán cookies Netscape nếu cần tải video bị giới hạn</span>
+                            <span class="setting-desc">Dán cookies Netscape nếu cần tải video YouTube bị giới hạn độ tuổi</span>
                         </div>
                         <textarea id="setting-cookies-input" class="cookies-textarea" placeholder="# Netscape HTTP Cookie File&#10;.youtube.com TRUE / FALSE ..."></textarea>
                         <button type="button" id="btn-save-cookies" class="btn btn-sm btn-primary">
@@ -246,32 +263,6 @@
                         </button>
                     </div>
                 </div>
-            </div>
-        </div>
-
-        <!-- History Modal Drawer -->
-        <div id="history-modal" class="modal-backdrop hidden">
-            <div class="modal-card glass-panel">
-                <div class="modal-header">
-                    <div class="modal-title">
-                        <div class="modal-icon-badge">
-                            <i class="fa-solid fa-clock-rotate-left"></i>
-                        </div>
-                        <div>
-                            <h3>Lịch Sử Tải Xuống</h3>
-                            <p class="modal-subtitle">Các tệp đã tải gần đây</p>
-                        </div>
-                    </div>
-                    <div class="modal-controls">
-                        <button id="btn-clear-history" class="btn btn-sm btn-danger" title="Xóa tất cả">
-                            <i class="fa-solid fa-trash-can"></i>
-                        </button>
-                        <button id="btn-close-history" class="btn-close" title="Đóng">
-                            <i class="fa-solid fa-xmark"></i>
-                        </button>
-                    </div>
-                </div>
-                <div class="modal-body" id="history-list"></div>
             </div>
         </div>
 
@@ -284,7 +275,7 @@
                 <img id="lightbox-img" src="" alt="Xem trước ảnh gốc">
                 <div class="lightbox-actions">
                     <a id="lightbox-download-btn" href="#" class="btn btn-primary" download target="_blank">
-                        <i class="fa-solid fa-download"></i> Tải ảnh gốc (:orig)
+                        <i class="fa-solid fa-download"></i> Tải ảnh gốc chất lượng cao
                     </a>
                 </div>
             </div>
