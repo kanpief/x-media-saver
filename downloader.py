@@ -870,89 +870,212 @@ def extract_tiktok_douyin_media(raw_url: str) -> dict:
 
 # ==================== FACEBOOK EXTRACTOR ====================
 
+def resolve_facebook_shortlink(url: str) -> str:
+    """Giải mã chuyển hướng shortlink Facebook (fb.watch, /share/v/, /share/r/, fb.com)."""
+    clean_url = extract_url_from_text(url)
+    if any(s in clean_url.lower() for s in ["fb.watch", "/share/v/", "/share/r/", "fb.com"]):
+        try:
+            resp = requests.get(
+                clean_url,
+                headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"},
+                allow_redirects=True,
+                timeout=8
+            )
+            clean_url = resp.url
+        except Exception as e:
+            print(f"Facebook redirect resolve error: {e}")
+
+    # Làm sạch các query tracking của Facebook
+    clean_url = re.sub(r'[?&](?:mibextid|rdid|__cft__|__tn__|ref)=[^&]+', '', clean_url)
+    return clean_url
+
+
+def parse_facebook_html_direct(url: str, cookies_dict: dict = None) -> dict:
+    """Bóc tách trực tiếp luồng stream HD/SD từ mã nguồn HTML Facebook."""
+    try:
+        session = requests.Session()
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9,vi;q=0.8",
+            "Referer": "https://www.facebook.com/"
+        }
+        resp = session.get(url, headers=headers, cookies=cookies_dict or {}, timeout=10)
+        html = resp.text
+
+        hd_url = None
+        sd_url = None
+
+        # 1. playable_url_quality_hd
+        m_hd = re.search(r'["\']playable_url_quality_hd["\']\s*:\s*["\'](https?:\\?/\\?/[^"\']+)["\']', html)
+        if m_hd:
+            hd_url = m_hd.group(1).replace(r'\/', '/')
+
+        # 2. playable_url (SD)
+        m_sd = re.search(r'["\']playable_url["\']\s*:\s*["\'](https?:\\?/\\?/[^"\']+)["\']', html)
+        if m_sd:
+            sd_url = m_sd.group(1).replace(r'\/', '/')
+
+        # 3. browser_native_hd_url / browser_native_sd_url
+        if not hd_url:
+            m_b_hd = re.search(r'["\']browser_native_hd_url["\']\s*:\s*["\'](https?:\\?/\\?/[^"\']+)["\']', html)
+            if m_b_hd:
+                hd_url = m_b_hd.group(1).replace(r'\/', '/')
+
+        if not sd_url:
+            m_b_sd = re.search(r'["\']browser_native_sd_url["\']\s*:\s*["\'](https?:\\?/\\?/[^"\']+)["\']', html)
+            if m_b_sd:
+                sd_url = m_b_sd.group(1).replace(r'\/', '/')
+
+        # 4. og:video
+        if not hd_url and not sd_url:
+            m_og = re.search(r'<meta\s+property=["\']og:video["\']\s+content=["\'](https?://[^"\']+)["\']', html)
+            if m_og:
+                sd_url = m_og.group(1)
+
+        title = "Facebook Video"
+        m_title = re.search(r'<meta\s+property=["\']og:title["\']\s+content=["\']([^"\']+)["\']', html)
+        if m_title:
+            title = m_title.group(1)
+
+        thumbnail = ""
+        m_thumb = re.search(r'<meta\s+property=["\']og:image["\']\s+content=["\']([^"\']+)["\']', html)
+        if m_thumb:
+            thumbnail = m_thumb.group(1)
+
+        qualities = []
+        if hd_url:
+            qualities.append({
+                "url": hd_url,
+                "resolution": "Bản HD Sắc Nét (1080p/720p)",
+                "format_id": "hd"
+            })
+        if sd_url:
+            qualities.append({
+                "url": sd_url,
+                "resolution": "Bản SD Tiêu Chuẩn (480p/360p)",
+                "format_id": "sd"
+            })
+
+        best_url = hd_url or sd_url
+        if best_url:
+            return {
+                "platform": "facebook",
+                "id": str(int(time.time())),
+                "title": title,
+                "author_name": "Facebook Creator",
+                "author_username": "facebook",
+                "author_avatar": "https://z-m-static.xx.fbcdn.net/rsrc.php/v3/yq/r/c5H4h0d9n4F.png",
+                "cover": thumbnail,
+                "duration_str": "HD",
+                "has_video": True,
+                "video_url": best_url,
+                "qualities": qualities,
+                "has_music": True,
+                "music_url": best_url,
+                "music_title": "Âm thanh gốc",
+                "music_author": "Facebook Creator",
+                "has_images": False,
+                "photos": [],
+                "url": url
+            }
+    except Exception as e:
+        print(f"Facebook HTML direct parse error: {e}")
+    return None
+
+
 def extract_facebook_media(raw_url: str) -> dict:
     """Trích xuất Video & Reels từ Facebook chất lượng HD / SD."""
     clean_url = extract_url_from_text(raw_url)
     if not clean_url:
         raise ValueError("Vui lòng nhập liên kết Facebook hợp lệ.")
 
+    resolved_url = resolve_facebook_shortlink(clean_url)
+
+    # Bước 1: Trích xuất qua yt-dlp (hỗ trợ cookies.txt)
+    cookies_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.txt")
     opts = {
         'quiet': True,
         'no_warnings': True,
         'skip_download': True,
         'http_headers': HEADERS
     }
+    if os.path.exists(cookies_file):
+        opts['cookiefile'] = cookies_file
 
     try:
         with yt_dlp.YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(clean_url, download=False)
-            if not info:
-                raise ValueError("Không nhận được dữ liệu từ Facebook.")
+            info = ydl.extract_info(resolved_url, download=False)
+            if info:
+                if "entries" in info and info["entries"]:
+                    info = info["entries"][0]
 
-            if "entries" in info and info["entries"]:
-                info = info["entries"][0]
+                title = info.get("title") or info.get("description") or "Facebook Video"
+                uploader = info.get("uploader") or info.get("creator") or "Facebook User"
+                thumbnail = info.get("thumbnail") or ""
+                duration = info.get("duration", 0)
+                duration_str = format_duration(duration) if duration else "HD"
 
-            title = info.get("title") or "Facebook Video"
-            uploader = info.get("uploader") or "Facebook User"
-            thumbnail = info.get("thumbnail") or ""
-            duration = info.get("duration", 0)
-            duration_str = format_duration(duration) if duration else "HD"
+                formats = info.get("formats", [])
+                video_qualities = []
+                best_video_url = info.get("url") or ""
 
-            formats = info.get("formats", [])
-            video_qualities = []
-            best_video_url = info.get("url") or ""
+                for f in formats:
+                    f_url = f.get("url")
+                    if not f_url:
+                        continue
+                    f_id = f.get("format_id", "")
+                    f_note = f.get("format_note") or f.get("resolution") or f_id
+                    
+                    if f_id in ["hd", "sd"] or f.get("vcodec") != "none":
+                        label = "Bản HD Sắc Nét (1080p/720p)" if f_id == "hd" else ("Bản SD Tiêu Chuẩn (480p/360p)" if f_id == "sd" else f"Chất lượng {f_note}")
+                        video_qualities.append({
+                            "url": f_url,
+                            "resolution": label,
+                            "format_id": f_id
+                        })
+                        if not best_video_url or f_id == "hd":
+                            best_video_url = f_url
 
-            # Lọc các định dạng mp4 có cả video và audio hoặc HD/SD
-            for f in formats:
-                f_url = f.get("url")
-                if not f_url:
-                    continue
-                f_id = f.get("format_id", "")
-                f_note = f.get("format_note") or f.get("resolution") or f_id
-                
-                if f_id in ["hd", "sd"] or f.get("vcodec") != "none":
-                    label = "Bản HD Sắc Nét (1080p/720p)" if f_id == "hd" else ("Bản SD Tiêu Chuẩn (480p/360p)" if f_id == "sd" else f"Chất lượng {f_note}")
+                if not video_qualities and best_video_url:
                     video_qualities.append({
-                        "url": f_url,
-                        "resolution": label,
-                        "format_id": f_id
+                        "url": best_video_url,
+                        "resolution": "Bản gốc MP4 HD",
+                        "format_id": "best"
                     })
-                    if not best_video_url or f_id == "hd":
-                        best_video_url = f_url
 
-            if not video_qualities and best_video_url:
-                video_qualities.append({
-                    "url": best_video_url,
-                    "resolution": "Bản gốc MP4 HD",
-                    "format_id": "best"
-                })
+                item_id = str(info.get("id") or int(time.time()))
 
-            item_id = str(info.get("id") or int(time.time()))
-
-            return {
-                "platform": "facebook",
-                "id": item_id,
-                "title": title,
-                "author_name": uploader,
-                "author_username": "facebook",
-                "author_avatar": "https://z-m-static.xx.fbcdn.net/rsrc.php/v3/yq/r/c5H4h0d9n4F.png",
-                "cover": thumbnail,
-                "duration": duration,
-                "duration_str": duration_str,
-                "has_video": True,
-                "video_url": best_video_url,
-                "qualities": video_qualities,
-                "has_music": True,
-                "music_url": best_video_url,
-                "music_title": "Âm thanh gốc",
-                "music_author": uploader,
-                "has_images": False,
-                "photos": [],
-                "url": clean_url
-            }
+                return {
+                    "platform": "facebook",
+                    "id": item_id,
+                    "title": title,
+                    "author_name": uploader,
+                    "author_username": "facebook",
+                    "author_avatar": "https://z-m-static.xx.fbcdn.net/rsrc.php/v3/yq/r/c5H4h0d9n4F.png",
+                    "cover": thumbnail,
+                    "duration": duration,
+                    "duration_str": duration_str,
+                    "has_video": True,
+                    "video_url": best_video_url,
+                    "qualities": video_qualities,
+                    "has_music": True,
+                    "music_url": best_video_url,
+                    "music_title": "Âm thanh gốc",
+                    "music_author": uploader,
+                    "has_images": False,
+                    "photos": [],
+                    "url": resolved_url
+                }
     except Exception as e:
-        print(f"Facebook extraction error: {e}")
-        raise ValueError(f"Không thể tải video Facebook này: {str(e)[:120]}. Video có thể đang ở chế độ riêng tư hoặc yêu cầu đăng nhập.")
+        print(f"Facebook yt-dlp error: {e}")
+
+    # Bước 2: Thử bóc tách trực tiếp từ HTML
+    direct_res = parse_facebook_html_direct(resolved_url)
+    if direct_res:
+        return direct_res
+
+    raise ValueError("Không thể tải video Facebook này. Video có thể ở chế độ riêng tư, trong nhóm kín hoặc yêu cầu đăng nhập. Bạn có thể mở Cài đặt (⚙️) và dán Cookies Facebook để tải mượt mà!")
 
 
 # ==================== INSTAGRAM EXTRACTOR ====================
