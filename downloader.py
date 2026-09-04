@@ -56,13 +56,15 @@ def is_safe_url(url: str) -> bool:
         return False
 
 def extract_url_from_text(raw_text: str) -> str:
-    """Trích xuất liên kết sạch từ văn bản chia sẻ."""
+    """Trích xuất liên kết sạch từ văn bản chia sẻ, loại bỏ các ký tự tiếng Trung hoặc văn bản thừa."""
     if not raw_text:
         return ""
     text = raw_text.strip()
-    match = re.search(r'(https?://[^\s<>"\']+)', text)
+    match = re.search(r'(https?://[^\s<>"\'\u4e00-\u9fa5，。！？]+)', text)
     if match:
-        return match.group(1).strip()
+        url = match.group(1).strip()
+        # Loại bỏ dấu gạch chéo hoặc dấu câu thừa ở cuối
+        return re.sub(r'[,;。，]+$', '', url)
     return text
 
 def detect_platform(url: str) -> str:
@@ -543,15 +545,166 @@ def download_youtube_file(url: str, target_type: str, quality_id: str, output_pa
 
 # ==================== TIKTOK & DOUYIN EXTRACTOR ====================
 
-def extract_tiktok_douyin_media(raw_url: str) -> dict:
-    """
-    Trích xuất Video Không Logo, MP3 Nhạc nền, và Toàn bộ Album ảnh từ TikTok & Douyin.
-    """
+def resolve_douyin_shortlink(url: str) -> tuple[str, str]:
+    """Giải mã chuyển hướng shortlink Douyin (v.douyin.com) để lấy Canonical URL và Item ID."""
+    clean_url = extract_url_from_text(url)
+    final_url = clean_url
+    item_id = ""
+
+    if "v.douyin.com" in clean_url or "douyin.com" in clean_url:
+        try:
+            resp = requests.get(
+                clean_url,
+                headers={"User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1"},
+                allow_redirects=True,
+                timeout=8
+            )
+            final_url = resp.url
+        except Exception as e:
+            print(f"Douyin redirect resolve error: {e}")
+
+    id_match = re.search(r'/(?:video|note)/(\d+)', final_url)
+    if id_match:
+        item_id = id_match.group(1)
+    elif re.search(r'^\d+$', clean_url.strip()):
+        item_id = clean_url.strip()
+
+    return final_url, item_id
+
+def extract_douyin_media(raw_url: str) -> dict:
+    """Trích xuất Video Không Logo, MP3 và Album ảnh từ Douyin (抖音)."""
     clean_url = extract_url_from_text(raw_url)
     if not clean_url:
-        raise ValueError("Vui lòng nhập liên kết TikTok hoặc Douyin hợp lệ.")
+        raise ValueError("Vui lòng nhập liên kết Douyin hợp lệ.")
 
-    platform_type = "douyin" if any(d in clean_url.lower() for d in ["douyin.com", "iesdouyin.com"]) else "tiktok"
+    final_url, item_id = resolve_douyin_shortlink(clean_url)
+    canonical_url = f"https://www.douyin.com/video/{item_id}" if item_id else final_url
+
+    # Bước 1: Thử qua yt-dlp (hỗ trợ cookies.txt nếu có)
+    cookies_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.txt")
+    opts = {
+        'quiet': True,
+        'no_warnings': True,
+        'skip_download': True,
+        'http_headers': HEADERS
+    }
+    if os.path.exists(cookies_file):
+        opts['cookiefile'] = cookies_file
+
+    try:
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(canonical_url, download=False)
+            if info:
+                title = info.get("title") or info.get("description") or "Douyin Video"
+                uploader = info.get("uploader") or info.get("creator") or "Douyin User"
+                video_url = info.get("url") or ""
+                thumbnail = info.get("thumbnail") or ""
+                duration = info.get("duration", 0)
+                duration_str = format_duration(duration) if duration else "HD"
+
+                return {
+                    "platform": "douyin",
+                    "id": item_id or str(info.get("id") or int(time.time())),
+                    "title": title,
+                    "author_name": uploader,
+                    "author_username": "douyin",
+                    "author_avatar": thumbnail or "https://p16-sign-sg.tiktokcdn.com/tos-alisg-avt-0068/default.jpeg",
+                    "cover": thumbnail,
+                    "duration": duration,
+                    "duration_str": duration_str,
+                    "has_video": bool(video_url),
+                    "video_url": video_url,
+                    "has_music": bool(video_url),
+                    "music_url": video_url,
+                    "music_title": "Âm thanh gốc Douyin",
+                    "music_author": uploader,
+                    "has_images": False,
+                    "photos": [],
+                    "url": clean_url
+                }
+    except Exception as e:
+        print(f"Douyin yt-dlp attempt: {e}")
+
+    # Bước 2: Thử qua TikWM API với canonical URL
+    try:
+        target_for_api = canonical_url if item_id else clean_url
+        resp = requests.post(
+            "https://www.tikwm.com/api/",
+            data={"url": target_for_api, "hd": 1},
+            headers=HEADERS,
+            timeout=10
+        )
+        if resp.status_code == 200:
+            res_json = resp.json()
+            if res_json.get("code") == 0:
+                data = res_json.get("data", {})
+                author = data.get("author", {})
+                author_name = author.get("nickname") or author.get("unique_id") or "Douyin User"
+                author_username = author.get("unique_id") or "user"
+                author_avatar = author.get("avatar") or "https://p16-sign-sg.tiktokcdn.com/tos-alisg-avt-0068/default.jpeg"
+                
+                title = data.get("title") or "Douyin Media"
+                ret_id = str(data.get("id") or item_id or int(time.time()))
+                duration = data.get("duration", 0)
+                duration_str = format_duration(duration) if duration else "HD"
+
+                video_url = data.get("hdplay") or data.get("play") or ""
+                wm_video_url = data.get("wmplay") or ""
+                cover = data.get("cover") or data.get("origin_cover") or ""
+
+                music_url = data.get("music") or ""
+                music_info = data.get("music_info", {})
+                music_title = music_info.get("title") or "Âm thanh gốc"
+                music_author = music_info.get("author") or author_name
+
+                raw_images = data.get("images") or []
+                photos = []
+                if raw_images and isinstance(raw_images, list):
+                    for idx, img_url in enumerate(raw_images):
+                        photos.append({
+                            "index": idx + 1,
+                            "type": "image",
+                            "preview_url": img_url,
+                            "download_url": img_url,
+                            "alt": f"Photo {idx + 1}"
+                        })
+
+                has_images = len(photos) > 0
+                has_video = bool(video_url) and not has_images
+                has_music = bool(music_url)
+
+                return {
+                    "platform": "douyin",
+                    "id": ret_id,
+                    "title": title,
+                    "author_name": author_name,
+                    "author_username": author_username,
+                    "author_avatar": author_avatar,
+                    "cover": cover,
+                    "duration": duration,
+                    "duration_str": duration_str,
+                    "has_video": has_video,
+                    "video_url": video_url,
+                    "video_wm_url": wm_video_url,
+                    "has_music": has_music,
+                    "music_url": music_url,
+                    "music_title": music_title,
+                    "music_author": music_author,
+                    "has_images": has_images,
+                    "photos": photos,
+                    "url": clean_url
+                }
+    except Exception as e:
+        print(f"Douyin TikWM error: {e}")
+
+    raise ValueError("Không thể trích xuất Douyin này do cơ chế chống bot của ByteDance. Vui lòng mở Cài đặt (⚙️) và dán Cookies Douyin để tải mượt mà!")
+
+
+def extract_tiktok_media(raw_url: str) -> dict:
+    """Trích xuất Video Không Logo, MP3 và Album ảnh từ TikTok."""
+    clean_url = extract_url_from_text(raw_url)
+    if not clean_url:
+        raise ValueError("Vui lòng nhập liên kết TikTok hợp lệ.")
 
     # Bước 1: Trích xuất qua TikWM API
     try:
@@ -602,7 +755,7 @@ def extract_tiktok_douyin_media(raw_url: str) -> dict:
                 has_music = bool(music_url)
 
                 return {
-                    "platform": platform_type,
+                    "platform": "tiktok",
                     "id": item_id,
                     "title": title,
                     "author_name": author_name,
@@ -623,53 +776,60 @@ def extract_tiktok_douyin_media(raw_url: str) -> dict:
                     "url": clean_url
                 }
     except Exception as e:
-        print(f"TikWM extraction error: {e}")
+        print(f"TikTok TikWM extraction error: {e}")
 
-    # Bước 2: Fallback qua LoveTik API nếu là TikTok video
-    if platform_type == "tiktok":
-        try:
-            r_love = requests.post(
-                "https://lovetik.com/api/ajax/search",
-                data={"query": clean_url},
-                headers=HEADERS,
-                timeout=8
-            )
-            if r_love.status_code == 200:
-                ld = r_love.json()
-                if ld.get("status") == "ok":
-                    links = ld.get("links", [])
-                    video_url = ""
-                    music_url = ""
-                    for l in links:
-                        if l.get("t") == "Nowatermark":
-                            video_url = l.get("a", "")
-                        elif l.get("t") == "MP3":
-                            music_url = l.get("a", "")
-                    
-                    if video_url:
-                        return {
-                            "platform": "tiktok",
-                            "id": ld.get("vid", str(int(time.time()))),
-                            "title": ld.get("desc") or "TikTok Video",
-                            "author_name": ld.get("author", "TikTok Creator"),
-                            "author_username": ld.get("author", "user"),
-                            "author_avatar": ld.get("cover", ""),
-                            "cover": ld.get("cover", ""),
-                            "duration_str": "HD",
-                            "has_video": True,
-                            "video_url": video_url,
-                            "has_music": bool(music_url),
-                            "music_url": music_url,
-                            "music_title": "Âm thanh gốc",
-                            "music_author": ld.get("author", "TikTok Creator"),
-                            "has_images": False,
-                            "photos": [],
-                            "url": clean_url
-                        }
-        except Exception as e:
-            print(f"LoveTik fallback error: {e}")
+    # Bước 2: Fallback qua LoveTik API
+    try:
+        r_love = requests.post(
+            "https://lovetik.com/api/ajax/search",
+            data={"query": clean_url},
+            headers=HEADERS,
+            timeout=8
+        )
+        if r_love.status_code == 200:
+            ld = r_love.json()
+            if ld.get("status") == "ok":
+                links = ld.get("links", [])
+                video_url = ""
+                music_url = ""
+                for l in links:
+                    if l.get("t") == "Nowatermark":
+                        video_url = l.get("a", "")
+                    elif l.get("t") == "MP3":
+                        music_url = l.get("a", "")
+                
+                if video_url:
+                    return {
+                        "platform": "tiktok",
+                        "id": ld.get("vid", str(int(time.time()))),
+                        "title": ld.get("desc") or "TikTok Video",
+                        "author_name": ld.get("author", "TikTok Creator"),
+                        "author_username": ld.get("author", "user"),
+                        "author_avatar": ld.get("cover", ""),
+                        "cover": ld.get("cover", ""),
+                        "duration_str": "HD",
+                        "has_video": True,
+                        "video_url": video_url,
+                        "has_music": bool(music_url),
+                        "music_url": music_url,
+                        "music_title": "Âm thanh gốc",
+                        "music_author": ld.get("author", "TikTok Creator"),
+                        "has_images": False,
+                        "photos": [],
+                        "url": clean_url
+                    }
+    except Exception as e:
+        print(f"LoveTik fallback error: {e}")
 
-    raise ValueError(f"Không thể trích xuất {platform_type.capitalize()}. Vui lòng kiểm tra lại liên kết hoặc thử lại sau!")
+    raise ValueError("Không thể trích xuất TikTok. Vui lòng kiểm tra lại liên kết hoặc thử lại sau!")
+
+
+def extract_tiktok_douyin_media(raw_url: str) -> dict:
+    """Điều phối trích xuất TikTok hoặc Douyin."""
+    clean_url = extract_url_from_text(raw_url).lower()
+    if any(d in clean_url for d in ["douyin.com", "iesdouyin.com"]):
+        return extract_douyin_media(raw_url)
+    return extract_tiktok_media(raw_url)
 
 
 # ==================== FACEBOOK EXTRACTOR ====================
