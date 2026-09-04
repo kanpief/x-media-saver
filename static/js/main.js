@@ -203,7 +203,29 @@ document.addEventListener("DOMContentLoaded", () => {
             };
         }
 
-        // 5. Check if it's an unsupported URL or invalid link
+        // 5. Facebook
+        if (val.includes("facebook.com") || val.includes("fb.watch") || val.includes("fb.com")) {
+            return {
+                platform: "facebook",
+                name: "Facebook",
+                desc: "Video HD & Reels",
+                icon: "fa-brands fa-facebook",
+                badgeClass: "badge-facebook"
+            };
+        }
+
+        // 6. Instagram
+        if (val.includes("instagram.com") || val.includes("instagr.am") || val.includes("ig.me")) {
+            return {
+                platform: "instagram",
+                name: "Instagram",
+                desc: "Ảnh HD, Reels & Album",
+                icon: "fa-brands fa-instagram",
+                badgeClass: "badge-instagram"
+            };
+        }
+
+        // 7. Check if it's an unsupported URL or invalid link
         if (val.startsWith("http://") || val.startsWith("https://") || val.includes(".com") || val.includes(".net") || val.includes(".org") || val.includes(".vn") || val.length > 8) {
             return { platform: "invalid" };
         }
@@ -273,8 +295,12 @@ document.addEventListener("DOMContentLoaded", () => {
                 inputUrl.placeholder = "Dán link TikTok vào đây... vd: https://www.tiktok.com/@user/video/...";
             } else if (platform === "douyin") {
                 inputUrl.placeholder = "Dán link Douyin (抖音) vào đây... vd: https://v.douyin.com/...";
+            } else if (platform === "facebook") {
+                inputUrl.placeholder = "Dán link Facebook Video hoặc Reels vào đây... vd: https://fb.watch/...";
+            } else if (platform === "instagram") {
+                inputUrl.placeholder = "Dán link Instagram Post, Reels hoặc Story... vd: https://instagram.com/reel/...";
             } else {
-                inputUrl.placeholder = "Dán link X (Twitter), YouTube, TikTok hoặc Douyin...";
+                inputUrl.placeholder = "Dán link X, YouTube, TikTok, Douyin, Facebook hoặc Instagram...";
             }
             inputUrl.focus();
         });
@@ -306,7 +332,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 validateUrlInput(inputUrl.value);
                 showToast("Đã dán liên kết!", "info", 1800);
 
-                // Auto extract if setting enabled and valid link
                 const autoExtract = localStorage.getItem("setting_auto_extract") !== "false";
                 const check = checkPlatformFromUrl(inputUrl.value);
                 if (autoExtract && check.platform !== "invalid" && check.platform !== "empty") {
@@ -345,7 +370,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const check = checkPlatformFromUrl(url);
         if (check.platform === "invalid") {
-            showToast("Định dạng link không được hỗ trợ! Vui lòng nhập link X, YouTube, TikTok hoặc Douyin.", "error", 4500);
+            showToast("Định dạng link không được hỗ trợ! Vui lòng nhập link X, YouTube, TikTok, Douyin, Facebook hoặc Instagram.", "error", 4500);
             formatWarningBox.classList.remove("hidden");
             return;
         }
@@ -374,6 +399,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 renderYouTubeResult(res.data);
             } else if (res.data.platform === "tiktok" || res.data.platform === "douyin") {
                 renderTikTokDouyinResult(res.data);
+            } else if (res.data.platform === "facebook") {
+                renderFacebookResult(res.data);
+            } else if (res.data.platform === "instagram") {
+                renderInstagramResult(res.data);
             } else {
                 renderTwitterResult(res.data);
             }
@@ -389,6 +418,263 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
 
+    // ==================== RENDER FACEBOOK RESULT ====================
+
+    function renderFacebookResult(data) {
+        const qualities = data.qualities || [];
+        let qualityOptionsHtml = qualities.map((q, idx) =>
+            `<option value="${q.url}">${q.resolution || `Bản ${idx+1}`}</option>`
+        ).join("");
+
+        resultContainer.innerHTML = `
+            <div class="result-card glass-panel luxury-border">
+                <!-- Author Header -->
+                <div class="tweet-author-header">
+                    <div class="author-profile">
+                        <div class="fb-avatar-icon">
+                            <i class="fa-brands fa-facebook"></i>
+                        </div>
+                        <div class="author-meta">
+                            <h4>${escapeHtml(data.author_name)} <i class="fa-solid fa-circle-check verified-icon"></i></h4>
+                            <span class="author-handle">Facebook Video • ${data.duration_str}</span>
+                        </div>
+                    </div>
+                    <a href="${data.url}" target="_blank" class="btn btn-sm btn-secondary" title="Xem trên Facebook">
+                        <i class="fa-brands fa-facebook"></i> Mở Facebook
+                    </a>
+                </div>
+
+                <!-- Video Title -->
+                ${data.title ? `<p class="tweet-text">${formatTweetText(data.title)}</p>` : ''}
+
+                <!-- Video Player -->
+                <div class="media-container video-wrapper">
+                    <video id="player-video" controls poster="${data.cover || ''}" playsinline>
+                        <source src="${data.video_url}" type="video/mp4">
+                    </video>
+                </div>
+
+                <!-- Download Actions -->
+                <div class="download-actions-card">
+                    <div class="dl-meta-row">
+                        <span class="tweet-badge badge-facebook"><i class="fa-solid fa-film"></i> Facebook Video Full HD / SD</span>
+                        ${qualities.length > 1 ? `
+                        <div class="quality-select-wrapper compact">
+                            <i class="fa-solid fa-sliders"></i>
+                            <select id="select-fb-quality" class="select-quality">${qualityOptionsHtml}</select>
+                        </div>` : `<input type="hidden" id="select-fb-quality" value="${data.video_url}">`}
+                    </div>
+                    <div class="actions-buttons">
+                        <button id="btn-dl-fb-video" class="btn btn-facebook btn-glow">
+                            <i class="fa-solid fa-download"></i>
+                            <span>Tải Video Facebook</span>
+                            <span class="btn-badge">MP4</span>
+                        </button>
+                        ${data.has_music ? `
+                        <a href="/api/stream-file?url=${encodeURIComponent(data.video_url)}&name=${encodeURIComponent('FB_Audio_' + data.id)}&ext=mp3" class="btn btn-music" download target="_blank">
+                            <i class="fa-solid fa-music"></i>
+                            <span>Tải Âm Thanh MP3</span>
+                        </a>` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+
+        resultContainer.classList.remove("hidden");
+        attachFacebookEvents(data);
+    }
+
+    function attachFacebookEvents(data) {
+        const selectQuality = document.getElementById("select-fb-quality");
+        const videoPlayer = document.getElementById("player-video");
+        if (selectQuality && videoPlayer) {
+            selectQuality.addEventListener("change", (e) => {
+                const newUrl = e.target.value;
+                const currentTime = videoPlayer.currentTime;
+                const isPaused = videoPlayer.paused;
+                videoPlayer.src = newUrl;
+                videoPlayer.currentTime = currentTime;
+                if (!isPaused) videoPlayer.play();
+            });
+        }
+
+        const btnDlFbVideo = document.getElementById("btn-dl-fb-video");
+        if (btnDlFbVideo) {
+            btnDlFbVideo.addEventListener("click", () => {
+                const targetUrl = selectQuality ? selectQuality.value : data.video_url;
+                const fname = `FB_${data.author_name}_${data.id}`;
+                const a = document.createElement("a");
+                a.href = `/api/stream-file?url=${encodeURIComponent(targetUrl)}&name=${encodeURIComponent(fname)}&ext=mp4`;
+                a.download = `${fname}.mp4`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                showToast("Đang tải video Facebook về máy...", "info");
+                autoReset(3000);
+            });
+        }
+    }
+
+
+    // ==================== RENDER INSTAGRAM RESULT ====================
+
+    function renderInstagramResult(data) {
+        let mediaHtml = "";
+        let actionsHtml = "";
+
+        if (data.has_images && data.photos && data.photos.length > 0) {
+            const count = data.photos.length;
+            const gridClass = count === 1 ? "grid-1" : (count === 2 ? "grid-2" : (count === 3 ? "grid-3" : "grid-more"));
+
+            const photoItems = data.photos.map((p, idx) => `
+                <div class="media-item" data-orig="${p.download_url}">
+                    <span class="media-badge-photo-idx"><i class="fa-solid fa-image"></i> ${idx + 1}/${count}</span>
+                    <img src="${p.preview_url}" alt="Instagram Photo ${idx + 1}" loading="lazy">
+                    <div class="media-overlay">
+                        <div class="btn-preview-circle"><i class="fa-solid fa-magnifying-glass-plus"></i></div>
+                    </div>
+                </div>
+            `).join("");
+
+            mediaHtml = `
+                <div class="media-container image-grid ${gridClass}">
+                    ${photoItems}
+                </div>
+            `;
+
+            actionsHtml = `
+                <div class="download-actions-card">
+                    <div class="dl-meta-row">
+                        <span class="tweet-badge badge-instagram"><i class="fa-solid fa-images"></i> Instagram ${count} ảnh gốc HD</span>
+                        <span class="tweet-badge badge-green"><i class="fa-solid fa-bolt"></i> Chất lượng gốc</span>
+                    </div>
+                    <div class="actions-buttons">
+                        <button id="btn-dl-ig-all-photos" class="btn btn-instagram btn-glow">
+                            <i class="fa-solid fa-cloud-arrow-down"></i>
+                            <span>Tải tất cả ${count} ảnh · 1 Phát</span>
+                            <span class="btn-badge">PNG</span>
+                        </button>
+                    </div>
+                </div>
+            `;
+        } else if (data.has_video && data.video_url) {
+            mediaHtml = `
+                <div class="media-container video-wrapper">
+                    <video id="player-video" controls poster="${data.cover || ''}" playsinline>
+                        <source src="${data.video_url}" type="video/mp4">
+                    </video>
+                </div>
+            `;
+
+            actionsHtml = `
+                <div class="download-actions-card">
+                    <div class="dl-meta-row">
+                        <span class="tweet-badge badge-instagram"><i class="fa-solid fa-film"></i> Instagram Video / Reels HD</span>
+                        <span class="tweet-badge badge-green"><i class="fa-solid fa-bolt"></i> Bản gốc</span>
+                    </div>
+                    <div class="actions-buttons">
+                        <button id="btn-dl-ig-video" class="btn btn-instagram btn-glow">
+                            <i class="fa-solid fa-download"></i>
+                            <span>Tải Reels / Video về máy</span>
+                            <span class="btn-badge">MP4</span>
+                        </button>
+                        ${data.has_music ? `
+                        <a href="/api/stream-file?url=${encodeURIComponent(data.video_url)}&name=${encodeURIComponent('IG_Audio_' + data.id)}&ext=mp3" class="btn btn-music" download target="_blank">
+                            <i class="fa-solid fa-music"></i>
+                            <span>Tải Âm Thanh MP3</span>
+                        </a>` : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        resultContainer.innerHTML = `
+            <div class="result-card glass-panel luxury-border">
+                <!-- Author Header -->
+                <div class="tweet-author-header">
+                    <div class="author-profile">
+                        <div class="ig-avatar-icon">
+                            <i class="fa-brands fa-instagram"></i>
+                        </div>
+                        <div class="author-meta">
+                            <h4>${escapeHtml(data.author_name)} <i class="fa-solid fa-circle-check verified-icon"></i></h4>
+                            <span class="author-handle">@${escapeHtml(data.author_username)}</span>
+                        </div>
+                    </div>
+                    <a href="${data.url}" target="_blank" class="btn btn-sm btn-secondary" title="Xem trên Instagram">
+                        <i class="fa-brands fa-instagram"></i> Mở Instagram
+                    </a>
+                </div>
+
+                <!-- Title / Caption -->
+                ${data.title ? `<p class="tweet-text">${formatTweetText(data.title)}</p>` : ''}
+
+                <!-- Media Preview -->
+                ${mediaHtml}
+
+                <!-- Download Actions -->
+                ${actionsHtml}
+            </div>
+        `;
+
+        resultContainer.classList.remove("hidden");
+        attachInstagramEvents(data);
+    }
+
+    function attachInstagramEvents(data) {
+        const mediaItems = resultContainer.querySelectorAll(".media-item");
+        mediaItems.forEach(item => {
+            item.addEventListener("click", () => {
+                const origUrl = item.getAttribute("data-orig");
+                lightboxImg.src = origUrl;
+                lightboxDownloadBtn.href = `/api/stream-file?url=${encodeURIComponent(origUrl)}&name=${encodeURIComponent('IG_' + data.author_username + '_' + data.id)}&ext=png`;
+                lightboxModal.classList.remove("hidden");
+            });
+        });
+
+        const btnDlAllPhotos = document.getElementById("btn-dl-ig-all-photos");
+        if (btnDlAllPhotos && data.photos) {
+            btnDlAllPhotos.addEventListener("click", async () => {
+                const photos = data.photos;
+                btnDlAllPhotos.disabled = true;
+                btnDlAllPhotos.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Đang tải ${photos.length} ảnh...`;
+
+                for (let i = 0; i < photos.length; i++) {
+                    const p = photos[i];
+                    const fname = `IG_${data.author_username}_${data.id}_${i+1}`;
+                    const a = document.createElement("a");
+                    a.href = `/api/stream-file?url=${encodeURIComponent(p.download_url)}&name=${encodeURIComponent(fname)}&ext=png`;
+                    a.download = `${fname}.png`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    if (i < photos.length - 1) await new Promise(r => setTimeout(r, 150));
+                }
+
+                showToast(`✅ Đã tải ${photos.length} ảnh Instagram về máy!`, "success");
+                btnDlAllPhotos.disabled = false;
+                btnDlAllPhotos.innerHTML = `<i class="fa-solid fa-cloud-arrow-down"></i> Tải tất cả (${photos.length} ảnh)`;
+                autoReset();
+            });
+        }
+
+        const btnDlVideo = document.getElementById("btn-dl-ig-video");
+        if (btnDlVideo && data.video_url) {
+            btnDlVideo.addEventListener("click", () => {
+                const fname = `IG_${data.author_username}_${data.id}`;
+                const a = document.createElement("a");
+                a.href = `/api/stream-file?url=${encodeURIComponent(data.video_url)}&name=${encodeURIComponent(fname)}&ext=mp4`;
+                a.download = `${fname}.mp4`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                showToast("Đang tải video Instagram về máy...", "info");
+                autoReset(3000);
+            });
+        }
+    }
+
+
     // ==================== RENDER TIKTOK & DOUYIN RESULT ====================
 
     function renderTikTokDouyinResult(data) {
@@ -401,7 +687,6 @@ document.addEventListener("DOMContentLoaded", () => {
         let actionsHtml = "";
 
         if (data.has_images && data.photos && data.photos.length > 0) {
-            // Photo Slideshow / Album
             const count = data.photos.length;
             const gridClass = count === 1 ? "grid-1" : (count === 2 ? "grid-2" : (count === 3 ? "grid-3" : "grid-more"));
 
@@ -442,7 +727,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 </div>
             `;
         } else if (data.has_video && data.video_url) {
-            // No-Watermark HD Video
             mediaContentHtml = `
                 <div class="media-container video-wrapper">
                     <video id="player-video" controls poster="${data.cover || ''}" playsinline>
@@ -508,7 +792,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function attachTikTokDouyinEvents(data) {
-        // Image Lightbox for TikTok/Douyin photos
         const mediaItems = resultContainer.querySelectorAll(".media-item");
         mediaItems.forEach(item => {
             item.addEventListener("click", () => {
@@ -519,7 +802,6 @@ document.addEventListener("DOMContentLoaded", () => {
             });
         });
 
-        // Batch Download All Photos
         const btnDlAllPhotos = document.getElementById("btn-dl-tt-all-photos");
         if (btnDlAllPhotos && data.photos) {
             btnDlAllPhotos.addEventListener("click", async () => {
@@ -546,7 +828,6 @@ document.addEventListener("DOMContentLoaded", () => {
             });
         }
 
-        // Video Download Button
         const btnDlVideo = document.getElementById("btn-dl-tt-video");
         if (btnDlVideo && data.video_url) {
             btnDlVideo.addEventListener("click", () => {
@@ -685,7 +966,6 @@ document.addEventListener("DOMContentLoaded", () => {
             btnBrowser.href = `/api/stream-youtube?url=${encodeURIComponent(data.url)}&type=${selectedYtMode}&quality=${encodeURIComponent(q)}&title=${encodeURIComponent(data.title)}`;
         }
 
-        // Real-time Progress Tracking Elements
         const downloadProgressModal = document.getElementById("download-progress-modal");
         const progressFileTitle = document.getElementById("progress-file-title");
         const progressStatusDesc = document.getElementById("progress-status-desc");
@@ -722,7 +1002,6 @@ document.addEventListener("DOMContentLoaded", () => {
             const q = selectQuality.value;
             const taskId = `dl_${Date.now()}`;
 
-            // Reset Progress State
             if (progressFileTitle) progressFileTitle.innerText = data.title;
             if (progressStatusDesc) progressStatusDesc.innerText = `Đang kết nối đến YouTube...`;
             if (progressPercentBadge) progressPercentBadge.innerText = `0%`;
@@ -742,7 +1021,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 btnCloseProgress.title = "Đang tải... Vui lòng đợi.";
             }
 
-            // Phase 1: Start background download
             const startUrl = `/api/start-download?url=${encodeURIComponent(data.url)}&type=${selectedYtMode}&quality=${encodeURIComponent(q)}&title=${encodeURIComponent(data.title)}&task_id=${taskId}`;
             try {
                 const startResp = await fetch(startUrl);
@@ -756,7 +1034,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 return;
             }
 
-            // Phase 2: Poll progress
             if (progressInterval) clearInterval(progressInterval);
             const estimatedMs = selectedYtMode === "mp3" ? 18000 : 45000;
             const startTime = Date.now();

@@ -76,8 +76,8 @@ def add_security_headers(response):
         "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://kit.fontawesome.com https://ka-f.fontawesome.com; "
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com https://ka-f.fontawesome.com; "
         "font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com https://ka-f.fontawesome.com data:; "
-        "img-src 'self' data: https: blob: http:; "
-        "media-src 'self' blob: https: http:; "
+        "img-src 'self' data: https: blob: http: *.fbcdn.net *.cdninstagram.com *.tiktokcdn.com *.byteoversea.com *.twimg.com *.ytimg.com; "
+        "media-src 'self' blob: https: http: *.fbcdn.net *.cdninstagram.com *.tiktokcdn.com *.byteoversea.com *.twimg.com *.googlevideo.com; "
         "connect-src 'self' https://ka-f.fontawesome.com https://cdnjs.cloudflare.com https://fonts.googleapis.com https: http:; "
     )
     response.headers["X-Content-Type-Options"] = "nosniff"
@@ -91,7 +91,7 @@ def api_extract():
     data = request.get_json(silent=True) or {}
     raw_url = data.get("url", "").strip()
     if not raw_url:
-        return jsonify({"success": False, "error": "Vui lòng nhập đường link X (Twitter), YouTube, TikTok hoặc Douyin!"}), 400
+        return jsonify({"success": False, "error": "Vui lòng nhập đường link bài viết!"}), 400
 
     clean_url = extract_url_from_text(raw_url)
     if not clean_url or not is_safe_url(clean_url):
@@ -148,10 +148,10 @@ def api_download_server():
         except Exception as e:
             return jsonify({"success": False, "error": f"Lỗi tải YouTube: {str(e)}"}), 500
 
-    # 2. Xử lý tải TikTok & Douyin
-    elif platform in ["tiktok", "douyin"]:
+    # 2. Xử lý tải TikTok, Douyin, Facebook, Instagram
+    elif platform in ["tiktok", "douyin", "facebook", "instagram"]:
         items = data.get("items", [])
-        title = data.get("title", "TikTok_Media")
+        title = data.get("title", f"{platform.capitalize()}_Media")
         clean_title = sanitize_filename(title)[:40]
         author = sanitize_filename(data.get("author", "creator"))[:20]
 
@@ -301,6 +301,10 @@ def api_stream_file():
         req_headers["Referer"] = "https://www.tiktok.com/"
     elif "douyin" in file_url:
         req_headers["Referer"] = "https://www.douyin.com/"
+    elif "fbcdn.net" in file_url or "facebook.com" in file_url:
+        req_headers["Referer"] = "https://www.facebook.com/"
+    elif "cdninstagram.com" in file_url or "instagram.com" in file_url:
+        req_headers["Referer"] = "https://www.instagram.com/"
 
     try:
         req = requests.get(file_url, headers=req_headers, stream=True, timeout=30)
@@ -509,7 +513,7 @@ if __name__ == "__main__":
     is_render = os.environ.get("RENDER") is not None
 
     print("=" * 60)
-    print("  🚀 Universal Media Pro Saver (X, YouTube, TikTok, Douyin) đang chạy...")
+    print("  🚀 Universal Media Pro Saver (X, YouTube, TikTok, Douyin, FB, IG) đang chạy...")
     print(f"  🌐 Cổng lắng nghe (Port): {port}")
     print("  📁 Thư mục lưu mặc định:", DOWNLOADS_DIR)
     print("=" * 60)

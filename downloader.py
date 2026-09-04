@@ -26,7 +26,9 @@ SUPPORTED_PLATFORMS = {
     "twitter": ["twitter.com", "x.com", "vxtwitter.com", "fxtwitter.com", "fixupx.com"],
     "youtube": ["youtube.com", "youtu.be", "music.youtube.com"],
     "tiktok": ["tiktok.com", "vt.tiktok.com", "vm.tiktok.com"],
-    "douyin": ["douyin.com", "iesdouyin.com", "v.douyin.com"]
+    "douyin": ["douyin.com", "iesdouyin.com", "v.douyin.com"],
+    "facebook": ["facebook.com", "fb.watch", "fb.com"],
+    "instagram": ["instagram.com", "instagr.am", "ig.me"]
 }
 
 # ==================== AN TOÀN & BẢO MẬT (SECURITY & SANITIZATION) ====================
@@ -43,7 +45,6 @@ def is_safe_url(url: str) -> bool:
         if not hostname:
             return False
         hostname_lower = hostname.lower()
-        # Chặn localhost & IP riêng tư
         if hostname_lower in ["localhost", "127.0.0.1", "0.0.0.0", "::1"]:
             return False
         if hostname_lower.startswith("192.168.") or hostname_lower.startswith("10.") or hostname_lower.startswith("172."):
@@ -55,7 +56,7 @@ def is_safe_url(url: str) -> bool:
         return False
 
 def extract_url_from_text(raw_text: str) -> str:
-    """Trích xuất liên kết sạch từ văn bản chia sẻ (ví dụ link chia sẻ từ app TikTok, Douyin)."""
+    """Trích xuất liên kết sạch từ văn bản chia sẻ."""
     if not raw_text:
         return ""
     text = raw_text.strip()
@@ -65,7 +66,7 @@ def extract_url_from_text(raw_text: str) -> str:
     return text
 
 def detect_platform(url: str) -> str:
-    """Tự động nhận diện nền tảng từ URL (X/Twitter, YouTube, TikTok, Douyin)."""
+    """Tự động nhận diện nền tảng từ URL (X/Twitter, YouTube, TikTok, Douyin, Facebook, Instagram)."""
     if not url:
         return "invalid"
     clean_url = extract_url_from_text(url).lower()
@@ -311,7 +312,7 @@ def clean_youtube_url(url: str) -> str:
     return clean_url
 
 def get_yt_opts(extra_opts=None):
-    """Tạo cấu hình yt-dlp tối ưu vượt qua bot-check của YouTube."""
+    """Tạo cấu hình yt-dlp tối ưu."""
     cookies_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.txt")
     cookies_env = os.environ.get("YOUTUBE_COOKIES") or os.environ.get("COOKIES")
     if cookies_env and not os.path.exists(cookies_file):
@@ -552,7 +553,7 @@ def extract_tiktok_douyin_media(raw_url: str) -> dict:
 
     platform_type = "douyin" if any(d in clean_url.lower() for d in ["douyin.com", "iesdouyin.com"]) else "tiktok"
 
-    # Bước 1: Trích xuất qua TikWM API (Hỗ trợ cực mạnh Video Không Logo, MP3 & Album Ảnh)
+    # Bước 1: Trích xuất qua TikWM API
     try:
         resp = requests.post(
             "https://www.tikwm.com/api/",
@@ -565,7 +566,6 @@ def extract_tiktok_douyin_media(raw_url: str) -> dict:
             if res_json.get("code") == 0:
                 data = res_json.get("data", {})
                 
-                # Thông tin tác giả
                 author = data.get("author", {})
                 author_name = author.get("nickname") or author.get("unique_id") or "TikTok User"
                 author_username = author.get("unique_id") or "user"
@@ -576,19 +576,15 @@ def extract_tiktok_douyin_media(raw_url: str) -> dict:
                 duration = data.get("duration", 0)
                 duration_str = format_duration(duration) if duration else "HD"
 
-                # Video links
                 video_url = data.get("hdplay") or data.get("play") or ""
-                # Watermarked fallback
                 wm_video_url = data.get("wmplay") or ""
                 cover = data.get("cover") or data.get("origin_cover") or ""
 
-                # Music / MP3 link
                 music_url = data.get("music") or ""
                 music_info = data.get("music_info", {})
                 music_title = music_info.get("title") or "Âm thanh gốc"
                 music_author = music_info.get("author") or author_name
 
-                # Images / Photo Slideshow (Dành cho bài viết dạng Album ảnh)
                 raw_images = data.get("images") or []
                 photos = []
                 if raw_images and isinstance(raw_images, list):
@@ -673,13 +669,236 @@ def extract_tiktok_douyin_media(raw_url: str) -> dict:
         except Exception as e:
             print(f"LoveTik fallback error: {e}")
 
-    raise ValueError(f"Không thể trích xuất {platform_type.capitalize()}. Vui lòng kiểm tra lại liên kết hoặc thử liên kết khác!")
+    raise ValueError(f"Không thể trích xuất {platform_type.capitalize()}. Vui lòng kiểm tra lại liên kết hoặc thử lại sau!")
+
+
+# ==================== FACEBOOK EXTRACTOR ====================
+
+def extract_facebook_media(raw_url: str) -> dict:
+    """Trích xuất Video & Reels từ Facebook chất lượng HD / SD."""
+    clean_url = extract_url_from_text(raw_url)
+    if not clean_url:
+        raise ValueError("Vui lòng nhập liên kết Facebook hợp lệ.")
+
+    opts = {
+        'quiet': True,
+        'no_warnings': True,
+        'skip_download': True,
+        'http_headers': HEADERS
+    }
+
+    try:
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(clean_url, download=False)
+            if not info:
+                raise ValueError("Không nhận được dữ liệu từ Facebook.")
+
+            if "entries" in info and info["entries"]:
+                info = info["entries"][0]
+
+            title = info.get("title") or "Facebook Video"
+            uploader = info.get("uploader") or "Facebook User"
+            thumbnail = info.get("thumbnail") or ""
+            duration = info.get("duration", 0)
+            duration_str = format_duration(duration) if duration else "HD"
+
+            formats = info.get("formats", [])
+            video_qualities = []
+            best_video_url = info.get("url") or ""
+
+            # Lọc các định dạng mp4 có cả video và audio hoặc HD/SD
+            for f in formats:
+                f_url = f.get("url")
+                if not f_url:
+                    continue
+                f_id = f.get("format_id", "")
+                f_note = f.get("format_note") or f.get("resolution") or f_id
+                
+                if f_id in ["hd", "sd"] or f.get("vcodec") != "none":
+                    label = "Bản HD Sắc Nét (1080p/720p)" if f_id == "hd" else ("Bản SD Tiêu Chuẩn (480p/360p)" if f_id == "sd" else f"Chất lượng {f_note}")
+                    video_qualities.append({
+                        "url": f_url,
+                        "resolution": label,
+                        "format_id": f_id
+                    })
+                    if not best_video_url or f_id == "hd":
+                        best_video_url = f_url
+
+            if not video_qualities and best_video_url:
+                video_qualities.append({
+                    "url": best_video_url,
+                    "resolution": "Bản gốc MP4 HD",
+                    "format_id": "best"
+                })
+
+            item_id = str(info.get("id") or int(time.time()))
+
+            return {
+                "platform": "facebook",
+                "id": item_id,
+                "title": title,
+                "author_name": uploader,
+                "author_username": "facebook",
+                "author_avatar": "https://z-m-static.xx.fbcdn.net/rsrc.php/v3/yq/r/c5H4h0d9n4F.png",
+                "cover": thumbnail,
+                "duration": duration,
+                "duration_str": duration_str,
+                "has_video": True,
+                "video_url": best_video_url,
+                "qualities": video_qualities,
+                "has_music": True,
+                "music_url": best_video_url,
+                "music_title": "Âm thanh gốc",
+                "music_author": uploader,
+                "has_images": False,
+                "photos": [],
+                "url": clean_url
+            }
+    except Exception as e:
+        print(f"Facebook extraction error: {e}")
+        raise ValueError(f"Không thể tải video Facebook này: {str(e)[:120]}. Video có thể đang ở chế độ riêng tư hoặc yêu cầu đăng nhập.")
+
+
+# ==================== INSTAGRAM EXTRACTOR ====================
+
+def extract_instagram_media(raw_url: str) -> dict:
+    """Trích xuất Ảnh, Reels, Video & Album Carousel từ Instagram."""
+    clean_url = extract_url_from_text(raw_url)
+    if not clean_url:
+        raise ValueError("Vui lòng nhập liên kết Instagram hợp lệ.")
+
+    # Trích xuất shortcode từ URL
+    shortcode_match = re.search(r'instagram\.com/(?:p|reel|tv|stories)/([a-zA-Z0-9_-]+)', clean_url)
+    shortcode = shortcode_match.group(1) if shortcode_match else str(int(time.time()))
+
+    # Bước 1: Thử trích xuất qua yt-dlp
+    opts = {
+        'quiet': True,
+        'no_warnings': True,
+        'skip_download': True,
+        'http_headers': HEADERS
+    }
+    cookies_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.txt")
+    if os.path.exists(cookies_file):
+        opts['cookiefile'] = cookies_file
+
+    try:
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(clean_url, download=False)
+            if info:
+                if "entries" in info and info["entries"]:
+                    info = info["entries"][0]
+
+                title = info.get("title") or info.get("description") or "Instagram Media"
+                uploader = info.get("uploader") or info.get("channel") or "Instagram User"
+                video_url = info.get("url") or ""
+                thumbnail = info.get("thumbnail") or ""
+                duration = info.get("duration", 0)
+                duration_str = format_duration(duration) if duration else "HD"
+
+                has_video = bool(video_url)
+                photos = []
+                if not has_video and thumbnail:
+                    photos.append({
+                        "index": 1,
+                        "type": "image",
+                        "preview_url": thumbnail,
+                        "download_url": thumbnail,
+                        "alt": "Instagram Photo"
+                    })
+
+                return {
+                    "platform": "instagram",
+                    "id": shortcode,
+                    "title": title,
+                    "author_name": uploader,
+                    "author_username": uploader,
+                    "author_avatar": "https://www.instagram.com/static/images/ico/favicon.ico/7016fd3039e1.ico",
+                    "cover": thumbnail,
+                    "duration": duration,
+                    "duration_str": duration_str,
+                    "has_video": has_video,
+                    "video_url": video_url,
+                    "has_music": has_video,
+                    "music_url": video_url,
+                    "music_title": "Âm thanh gốc",
+                    "music_author": uploader,
+                    "has_images": len(photos) > 0,
+                    "photos": photos,
+                    "url": clean_url
+                }
+    except Exception as e:
+        print(f"Instagram yt-dlp error: {e}")
+
+    # Bước 2: Thử qua Instaloader
+    try:
+        import instaloader
+        L = instaloader.Instaloader(
+            download_pictures=False,
+            download_videos=False,
+            download_video_thumbnails=False,
+            download_geotags=False,
+            download_comments=False,
+            save_metadata=False,
+            compress_json=False
+        )
+        post = instaloader.Post.from_shortcode(L.context, shortcode)
+        
+        uploader = post.owner_username or "Instagram Creator"
+        caption = post.caption or "Instagram Post"
+        is_video = post.is_video
+        video_url = post.video_url if is_video else ""
+        cover = post.url
+        
+        photos = []
+        sidecar_nodes = list(post.get_sidecar_nodes())
+        if sidecar_nodes:
+            for idx, node in enumerate(sidecar_nodes):
+                photos.append({
+                    "index": idx + 1,
+                    "type": "video" if node.is_video else "image",
+                    "preview_url": node.display_url,
+                    "download_url": node.video_url if node.is_video else node.display_url,
+                    "alt": f"Slide {idx + 1}"
+                })
+        elif not is_video and cover:
+            photos.append({
+                "index": 1,
+                "type": "image",
+                "preview_url": cover,
+                "download_url": cover,
+                "alt": "Instagram Photo"
+            })
+
+        return {
+            "platform": "instagram",
+            "id": shortcode,
+            "title": caption,
+            "author_name": uploader,
+            "author_username": uploader,
+            "author_avatar": "https://www.instagram.com/static/images/ico/favicon.ico/7016fd3039e1.ico",
+            "cover": cover,
+            "duration_str": "HD",
+            "has_video": is_video,
+            "video_url": video_url,
+            "has_music": is_video,
+            "music_url": video_url,
+            "music_title": "Âm thanh gốc",
+            "music_author": uploader,
+            "has_images": len(photos) > 0 and not is_video,
+            "photos": photos,
+            "url": clean_url
+        }
+    except Exception as e:
+        print(f"Instaloader error: {e}")
+
+    raise ValueError("Không thể trích xuất bài viết Instagram này. Bài viết có thể ở chế độ riêng tư hoặc yêu cầu đăng nhập.")
 
 
 # ==================== MAIN DISPATCHER ====================
 
 def extract_media(url: str) -> dict:
-    """Tự động phân loại và trích xuất từ X/Twitter, YouTube, TikTok hoặc Douyin."""
+    """Tự động phân loại và trích xuất từ X/Twitter, YouTube, TikTok, Douyin, Facebook hoặc Instagram."""
     if not is_safe_url(url):
         clean_url = extract_url_from_text(url)
         if not is_safe_url(clean_url):
@@ -693,18 +912,18 @@ def extract_media(url: str) -> dict:
         return extract_tweet_media(url)
     elif platform in ["tiktok", "douyin"]:
         return extract_tiktok_douyin_media(url)
+    elif platform == "facebook":
+        return extract_facebook_media(url)
+    elif platform == "instagram":
+        return extract_instagram_media(url)
     else:
         # Thử lần lượt các nền tảng
-        try:
-            return extract_tiktok_douyin_media(url)
-        except Exception:
+        for fn in [extract_tiktok_douyin_media, extract_facebook_media, extract_instagram_media, extract_tweet_media, extract_youtube_media]:
             try:
-                return extract_tweet_media(url)
+                return fn(url)
             except Exception:
-                try:
-                    return extract_youtube_media(url)
-                except Exception:
-                    raise ValueError("Định dạng liên kết không được hỗ trợ! Hiện tại công cụ hỗ trợ: X (Twitter), YouTube, TikTok và Douyin.")
+                continue
+        raise ValueError("Định dạng liên kết không được hỗ trợ! Hiện tại công cụ hỗ trợ: X (Twitter), YouTube, TikTok, Douyin, Facebook và Instagram.")
 
 def download_file(url: str, save_path: str, chunk_size: int = 65536) -> str:
     """Tải một file từ URL trực tiếp và lưu vào đĩa."""

@@ -23,6 +23,12 @@
     --tiktok-pink: #fe2c55;
     --tiktok-glow: rgba(254, 44, 85, 0.35);
     
+    --fb-blue: #1877f2;
+    --fb-glow: rgba(24, 119, 242, 0.35);
+    
+    --ig-gradient: linear-gradient(135deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+    --ig-glow: rgba(220, 39, 67, 0.35);
+    
     --douyin-gradient: linear-gradient(135deg, #111111 0%, #fe2c55 50%, #25f4ee 100%);
     
     --secondary: #10b981;
@@ -395,6 +401,26 @@ body {
     box-shadow: 0 4px 18px rgba(255, 0, 85, 0.4);
 }
 
+.btn-facebook {
+    background: linear-gradient(135deg, #1877f2 0%, #0d5cb6 100%);
+    color: #fff;
+    box-shadow: 0 4px 18px var(--fb-glow);
+}
+
+.btn-facebook:hover {
+    background: linear-gradient(135deg, #166fe5 0%, #094d9e 100%);
+}
+
+.btn-instagram {
+    background: var(--ig-gradient);
+    color: #fff;
+    box-shadow: 0 4px 18px var(--ig-glow);
+}
+
+.btn-instagram:hover {
+    filter: brightness(1.1);
+}
+
 /* Input Card */
 .input-card {
     padding: 16px;
@@ -477,6 +503,16 @@ body {
 .tab-btn[data-platform="douyin"].active {
     background: linear-gradient(135deg, #ff0055 0%, #7928ca 100%);
     box-shadow: 0 2px 12px rgba(255, 0, 85, 0.4);
+}
+
+.tab-btn[data-platform="facebook"].active {
+    background: var(--fb-blue);
+    box-shadow: 0 2px 12px var(--fb-glow);
+}
+
+.tab-btn[data-platform="instagram"].active {
+    background: var(--ig-gradient);
+    box-shadow: 0 2px 12px var(--ig-glow);
 }
 
 /* Search Form */
@@ -622,6 +658,18 @@ body {
     color: #c084fc;
 }
 
+.format-detected-badge.badge-facebook {
+    background: rgba(24, 119, 242, 0.12);
+    border-color: rgba(24, 119, 242, 0.35);
+    color: #60a5fa;
+}
+
+.format-detected-badge.badge-instagram {
+    background: rgba(220, 39, 67, 0.14);
+    border-color: rgba(220, 39, 67, 0.35);
+    color: #fb7185;
+}
+
 /* Instant Format Warning Alert Box */
 .format-warning-box {
     display: flex;
@@ -696,6 +744,8 @@ body {
 .pill-yt i { color: #ff4d4d; }
 .pill-tt i { color: #00f2fe; }
 .pill-dy i { color: #ec4899; }
+.pill-fb i { color: #1877f2; }
+.pill-ig i { color: #e1306c; }
 
 /* Skeleton Loading */
 .skeleton-container {
@@ -808,13 +858,21 @@ body {
     font-size: 22px;
 }
 
-.tiktok-avatar-icon {
-    background: #111;
-    border: 2px solid #fe2c55;
+.fb-avatar-icon {
+    background: #1877f2;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #00f2fe;
+    color: #fff;
+    font-size: 22px;
+}
+
+.ig-avatar-icon {
+    background: var(--ig-gradient);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
     font-size: 22px;
 }
 
@@ -1043,6 +1101,18 @@ body {
     background: rgba(139, 92, 246, 0.14);
     color: #c084fc;
     border: 1px solid rgba(139, 92, 246, 0.35);
+}
+
+.tweet-badge.badge-facebook {
+    background: rgba(24, 119, 242, 0.12);
+    color: #60a5fa;
+    border: 1px solid rgba(24, 119, 242, 0.35);
+}
+
+.tweet-badge.badge-instagram {
+    background: rgba(220, 39, 67, 0.14);
+    color: #fb7185;
+    border: 1px solid rgba(220, 39, 67, 0.35);
 }
 
 .format-switch-container {

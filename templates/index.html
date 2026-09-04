@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Media Pro Saver | Tải X, YouTube, TikTok & Douyin Không Logo</title>
-    <meta name="description" content="Công cụ tải ảnh gốc :orig từ X, video 4K YouTube & MP3 320kbps, video TikTok & Douyin không logo, tải nhạc MP3 và album ảnh chất lượng cao.">
+    <title>Media Pro Saver | Tải X, YouTube, TikTok, Douyin, Facebook & Instagram</title>
+    <meta name="description" content="Tải ảnh gốc :orig từ X, video 4K YouTube & MP3 320k, video TikTok & Douyin không logo, video Facebook HD & Reels, ảnh/video Instagram chất lượng cao.">
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -34,7 +34,7 @@
                 <div class="brand-info">
                     <div class="brand-title-row">
                         <h1>Media <span class="gradient-text">Pro Saver</span></h1>
-                        <span class="version-badge">ULTRA 4.0</span>
+                        <span class="version-badge">ULTRA 4.5</span>
                     </div>
                     <p class="subtitle">Tải ảnh gốc <strong>:orig</strong>, Video <strong>Không Logo</strong> & <strong>MP3 320k</strong></p>
                 </div>
@@ -72,7 +72,15 @@
                         </button>
                         <button class="tab-btn" data-platform="douyin">
                             <i class="fa-solid fa-compact-disc"></i>
-                            <span>Douyin (抖音)</span>
+                            <span>Douyin</span>
+                        </button>
+                        <button class="tab-btn" data-platform="facebook">
+                            <i class="fa-brands fa-facebook"></i>
+                            <span>Facebook</span>
+                        </button>
+                        <button class="tab-btn" data-platform="instagram">
+                            <i class="fa-brands fa-instagram"></i>
+                            <span>Instagram</span>
                         </button>
                     </div>
                 </div>
@@ -84,7 +92,7 @@
                         <input 
                             type="text" 
                             id="tweet-url-input" 
-                            placeholder="Dán link X (Twitter), YouTube, TikTok hoặc Douyin..." 
+                            placeholder="Dán link X, YouTube, TikTok, Douyin, Facebook hoặc Instagram..." 
                             autocomplete="off"
                             spellcheck="false"
                             required
@@ -111,7 +119,7 @@
                         <div class="warning-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
                         <div class="warning-content">
                             <strong>Định dạng liên kết không được hỗ trợ!</strong>
-                            <p>Vui lòng dán liên kết từ <strong>X (Twitter)</strong>, <strong>YouTube</strong>, <strong>TikTok</strong> hoặc <strong>Douyin</strong>.</p>
+                            <p>Vui lòng dán liên kết từ <strong>X (Twitter)</strong>, <strong>YouTube</strong>, <strong>TikTok</strong>, <strong>Douyin</strong>, <strong>Facebook</strong> hoặc <strong>Instagram</strong>.</p>
                         </div>
                     </div>
 
@@ -131,8 +139,10 @@
                 <div class="feature-pills">
                     <span class="pill pill-x"><i class="fa-brands fa-x-twitter"></i> X <strong>:orig & 4K</strong></span>
                     <span class="pill pill-yt"><i class="fa-brands fa-youtube"></i> YouTube <strong>MP4 & MP3</strong></span>
-                    <span class="pill pill-tt"><i class="fa-brands fa-tiktok"></i> TikTok <strong>No-Logo & MP3</strong></span>
+                    <span class="pill pill-tt"><i class="fa-brands fa-tiktok"></i> TikTok <strong>Không Logo</strong></span>
                     <span class="pill pill-dy"><i class="fa-solid fa-compact-disc"></i> Douyin <strong>Album Ảnh</strong></span>
+                    <span class="pill pill-fb"><i class="fa-brands fa-facebook"></i> Facebook <strong>HD & Reels</strong></span>
+                    <span class="pill pill-ig"><i class="fa-brands fa-instagram"></i> Instagram <strong>Ảnh & Reels</strong></span>
                 </div>
             </section>
 
@@ -254,10 +264,10 @@
 
                     <div class="setting-group vertical-group">
                         <div class="setting-info">
-                            <label><i class="fa-solid fa-cookie-bite text-warning"></i> YouTube Cookies (Video 18+)</label>
-                            <span class="setting-desc">Dán cookies Netscape nếu cần tải video YouTube bị giới hạn độ tuổi</span>
+                            <label><i class="fa-solid fa-cookie-bite text-warning"></i> Cookies (YouTube, IG 18+)</label>
+                            <span class="setting-desc">Dán cookies Netscape nếu cần tải video bị giới hạn độ tuổi hoặc riêng tư</span>
                         </div>
-                        <textarea id="setting-cookies-input" class="cookies-textarea" placeholder="# Netscape HTTP Cookie File&#10;.youtube.com TRUE / FALSE ..."></textarea>
+                        <textarea id="setting-cookies-input" class="cookies-textarea" placeholder="# Netscape HTTP Cookie File&#10;.youtube.com TRUE / FALSE ...&#10;.instagram.com TRUE / FALSE ..."></textarea>
                         <button type="button" id="btn-save-cookies" class="btn btn-sm btn-primary">
                             <i class="fa-solid fa-floppy-disk"></i> Lưu Cookies
                         </button>
