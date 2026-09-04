@@ -17,7 +17,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const skeleton = document.getElementById("skeleton-loading");
     const resultContainer = document.getElementById("result-container");
     const toastContainer = document.getElementById("toast-container");
-    const tabBtns = document.querySelectorAll(".tab-btn");
+    const navTabs = document.querySelectorAll(".nav-tab");
 
     // Settings Modal Elements
     const btnToggleSettings = document.getElementById("btn-toggle-settings");
@@ -68,11 +68,11 @@ document.addEventListener("DOMContentLoaded", () => {
     if (settingAutoExtract) {
         settingAutoExtract.addEventListener("change", () => {
             localStorage.setItem("setting_auto_extract", settingAutoExtract.checked);
-            showToast(settingAutoExtract.checked ? "Đã bật tự động phân tích!" : "Đã tắt tự động phân tích!", "info", 2000);
+            showToast(settingAutoExtract.checked ? "Đã bật tự động phân tích khi dán!" : "Đã tắt tự động phân tích!", "info", 2000);
         });
     }
 
-    // Save Cookies to Server
+    // Save Cookies
     if (btnSaveCookies) {
         btnSaveCookies.addEventListener("click", async () => {
             const cookiesText = settingCookiesInput.value.trim();
@@ -87,7 +87,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 });
                 const res = await safeJson(resp);
                 if (res.success) {
-                    showToast(res.message || "Đã lưu Cookies!", "success");
+                    showToast(res.message || "Đã lưu Cookies thành công!", "success");
                 } else {
                     showToast(res.error || "Lỗi lưu cookies", "error");
                 }
@@ -100,7 +100,7 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    // Settings Modal Toggle
+    // Modal Events
     if (btnToggleSettings) {
         btnToggleSettings.addEventListener("click", () => {
             settingsModal.classList.remove("hidden");
@@ -120,7 +120,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Toast Notification System
     function showToast(message, type = "info", duration = 3500) {
         const toast = document.createElement("div");
-        toast.className = `toast toast-${type}`;
+        toast.className = `toast-item toast-${type}`;
         
         let icon = "fa-circle-info";
         if (type === "success") icon = "fa-circle-check";
@@ -134,7 +134,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         setTimeout(() => {
             toast.style.opacity = "0";
-            toast.style.transform = "translateY(15px) scale(0.9)";
+            toast.style.transform = "translateY(12px) scale(0.95)";
             setTimeout(() => toast.remove(), 300);
         }, duration);
     }
@@ -166,7 +166,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 name: "Twitter (X)",
                 desc: "Ảnh gốc :orig / Video 4K",
                 icon: "fa-brands fa-x-twitter",
-                badgeClass: "badge-twitter"
+                containerClass: "is-valid-twitter"
             };
         }
 
@@ -177,7 +177,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 name: "YouTube",
                 desc: "Video MP4 / MP3 320k",
                 icon: "fa-brands fa-youtube",
-                badgeClass: "badge-youtube"
+                containerClass: "is-valid-youtube"
             };
         }
 
@@ -188,7 +188,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 name: "TikTok",
                 desc: "Video Không Logo / MP3 / Album Ảnh",
                 icon: "fa-brands fa-tiktok",
-                badgeClass: "badge-tiktok"
+                containerClass: "is-valid-tiktok"
             };
         }
 
@@ -199,7 +199,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 name: "Douyin (抖音)",
                 desc: "Video Không Logo / MP3 / Album Ảnh",
                 icon: "fa-solid fa-compact-disc",
-                badgeClass: "badge-douyin"
+                containerClass: "is-valid-douyin"
             };
         }
 
@@ -210,7 +210,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 name: "Facebook",
                 desc: "Video HD & Reels",
                 icon: "fa-brands fa-facebook",
-                badgeClass: "badge-facebook"
+                containerClass: "is-valid-facebook"
             };
         }
 
@@ -221,7 +221,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 name: "Instagram",
                 desc: "Ảnh HD, Reels & Album",
                 icon: "fa-brands fa-instagram",
-                badgeClass: "badge-instagram"
+                containerClass: "is-valid-instagram"
             };
         }
 
@@ -238,12 +238,12 @@ document.addEventListener("DOMContentLoaded", () => {
         const result = checkPlatformFromUrl(text);
 
         // Reset all classes
-        inputWrapper.classList.remove("is-valid", "is-invalid");
-        formatDetectedBadge.className = "format-detected-badge hidden";
+        inputWrapper.className = "input-container";
+        formatDetectedBadge.classList.add("hidden");
         formatWarningBox.classList.add("hidden");
 
         if (result.platform === "empty") {
-            inputPlatformIcon.className = "fa-solid fa-link input-icon";
+            inputPlatformIcon.className = "fa-solid fa-link";
             btnClear.classList.add("hidden");
             return;
         }
@@ -252,23 +252,22 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (result.platform === "invalid") {
             inputWrapper.classList.add("is-invalid");
-            inputPlatformIcon.className = "fa-solid fa-triangle-exclamation input-icon";
+            inputPlatformIcon.className = "fa-solid fa-triangle-exclamation";
             formatWarningBox.classList.remove("hidden");
             switchActiveTab("all");
             return;
         }
 
         if (result.platform === "typing") {
-            inputPlatformIcon.className = "fa-solid fa-link input-icon";
+            inputPlatformIcon.className = "fa-solid fa-link";
             return;
         }
 
         // Valid platform recognized!
-        inputWrapper.classList.add("is-valid");
-        inputPlatformIcon.className = `${result.icon} input-icon`;
+        inputWrapper.classList.add(result.containerClass);
+        inputPlatformIcon.className = result.icon;
         
         // Show detection badge
-        formatDetectedBadge.className = `format-detected-badge ${result.badgeClass}`;
         detectedText.innerHTML = `<strong>${result.name}</strong> • ${result.desc}`;
         formatDetectedBadge.classList.remove("hidden");
 
@@ -276,15 +275,14 @@ document.addEventListener("DOMContentLoaded", () => {
         switchActiveTab(result.platform);
     }
 
-    // Real-time listener for input changes
     inputUrl.addEventListener("input", () => {
         validateUrlInput(inputUrl.value);
     });
 
     // Tab Switching
-    tabBtns.forEach(btn => {
+    navTabs.forEach(btn => {
         btn.addEventListener("click", () => {
-            tabBtns.forEach(b => b.classList.remove("active"));
+            navTabs.forEach(b => b.classList.remove("active"));
             btn.classList.add("active");
             const platform = btn.dataset.platform;
             if (platform === "youtube") {
@@ -307,7 +305,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     function switchActiveTab(platform) {
-        tabBtns.forEach(btn => {
+        navTabs.forEach(btn => {
             if (btn.dataset.platform === platform) {
                 btn.classList.add("active");
             } else if (platform === "all" && btn.dataset.platform === "all") {
@@ -344,7 +342,6 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    // Safe JSON parser to prevent "Unexpected token <"
     async function safeJson(resp) {
         const text = await resp.text();
         try {
@@ -370,7 +367,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const check = checkPlatformFromUrl(url);
         if (check.platform === "invalid") {
-            showToast("Định dạng link không được hỗ trợ! Vui lòng nhập link X, YouTube, TikTok, Douyin, Facebook hoặc Instagram.", "error", 4500);
+            showToast("Định dạng link không được hỗ trợ! Vui lòng kiểm tra lại liên kết.", "error", 4500);
             formatWarningBox.classList.remove("hidden");
             return;
         }
@@ -427,51 +424,51 @@ document.addEventListener("DOMContentLoaded", () => {
         ).join("");
 
         resultContainer.innerHTML = `
-            <div class="result-card glass-panel luxury-border">
+            <div class="result-card">
                 <!-- Author Header -->
-                <div class="tweet-author-header">
-                    <div class="author-profile">
-                        <div class="fb-avatar-icon">
+                <div class="card-author-bar">
+                    <div class="author-profile-group">
+                        <div class="avatar-icon-brand fb-icon">
                             <i class="fa-brands fa-facebook"></i>
                         </div>
-                        <div class="author-meta">
+                        <div class="author-meta-text">
                             <h4>${escapeHtml(data.author_name)} <i class="fa-solid fa-circle-check verified-icon"></i></h4>
-                            <span class="author-handle">Facebook Video • ${data.duration_str}</span>
+                            <span class="author-handle-text">Facebook Video • ${data.duration_str}</span>
                         </div>
                     </div>
-                    <a href="${data.url}" target="_blank" class="btn btn-sm btn-secondary" title="Xem trên Facebook">
+                    <a href="${data.url}" target="_blank" class="btn-open-origin" title="Xem trên Facebook">
                         <i class="fa-brands fa-facebook"></i> Mở Facebook
                     </a>
                 </div>
 
                 <!-- Video Title -->
-                ${data.title ? `<p class="tweet-text">${formatTweetText(data.title)}</p>` : ''}
+                ${data.title ? `<p class="card-caption-text">${formatTweetText(data.title)}</p>` : ''}
 
                 <!-- Video Player -->
-                <div class="media-container video-wrapper">
+                <div class="media-box-wrapper video-container">
                     <video id="player-video" controls poster="${data.cover || ''}" playsinline>
                         <source src="${data.video_url}" type="video/mp4">
                     </video>
                 </div>
 
                 <!-- Download Actions -->
-                <div class="download-actions-card">
-                    <div class="dl-meta-row">
-                        <span class="tweet-badge badge-facebook"><i class="fa-solid fa-film"></i> Facebook Video Full HD / SD</span>
+                <div class="download-action-card">
+                    <div class="meta-tags-bar">
+                        <span class="status-chip chip-facebook"><i class="fa-solid fa-film"></i> Facebook Video Full HD / SD</span>
                         ${qualities.length > 1 ? `
-                        <div class="quality-select-wrapper compact">
+                        <div class="quality-dropdown-wrap">
                             <i class="fa-solid fa-sliders"></i>
-                            <select id="select-fb-quality" class="select-quality">${qualityOptionsHtml}</select>
+                            <select id="select-fb-quality" class="quality-select-native">${qualityOptionsHtml}</select>
                         </div>` : `<input type="hidden" id="select-fb-quality" value="${data.video_url}">`}
                     </div>
-                    <div class="actions-buttons">
-                        <button id="btn-dl-fb-video" class="btn btn-facebook btn-glow">
+                    <div class="action-buttons-stack">
+                        <button id="btn-dl-fb-video" class="btn-cta btn-cta-facebook">
                             <i class="fa-solid fa-download"></i>
                             <span>Tải Video Facebook</span>
-                            <span class="btn-badge">MP4</span>
+                            <span class="cta-badge-tag">MP4</span>
                         </button>
                         ${data.has_music ? `
-                        <a href="/api/stream-file?url=${encodeURIComponent(data.video_url)}&name=${encodeURIComponent('FB_Audio_' + data.id)}&ext=mp3" class="btn btn-music" download target="_blank">
+                        <a href="/api/stream-file?url=${encodeURIComponent(data.video_url)}&name=${encodeURIComponent('FB_Audio_' + data.id)}&ext=mp3" class="btn-cta btn-cta-music" download target="_blank">
                             <i class="fa-solid fa-music"></i>
                             <span>Tải Âm Thanh MP3</span>
                         </a>` : ''}
@@ -527,39 +524,39 @@ document.addEventListener("DOMContentLoaded", () => {
             const gridClass = count === 1 ? "grid-1" : (count === 2 ? "grid-2" : (count === 3 ? "grid-3" : "grid-more"));
 
             const photoItems = data.photos.map((p, idx) => `
-                <div class="media-item" data-orig="${p.download_url}">
-                    <span class="media-badge-photo-idx"><i class="fa-solid fa-image"></i> ${idx + 1}/${count}</span>
+                <div class="gallery-photo-item" data-orig="${p.download_url}">
+                    <span class="photo-index-tag"><i class="fa-solid fa-image"></i> ${idx + 1}/${count}</span>
                     <img src="${p.preview_url}" alt="Instagram Photo ${idx + 1}" loading="lazy">
-                    <div class="media-overlay">
-                        <div class="btn-preview-circle"><i class="fa-solid fa-magnifying-glass-plus"></i></div>
+                    <div class="photo-hover-overlay">
+                        <div class="zoom-icon-circle"><i class="fa-solid fa-magnifying-glass-plus"></i></div>
                     </div>
                 </div>
             `).join("");
 
             mediaHtml = `
-                <div class="media-container image-grid ${gridClass}">
+                <div class="image-gallery-grid ${gridClass}">
                     ${photoItems}
                 </div>
             `;
 
             actionsHtml = `
-                <div class="download-actions-card">
-                    <div class="dl-meta-row">
-                        <span class="tweet-badge badge-instagram"><i class="fa-solid fa-images"></i> Instagram ${count} ảnh gốc HD</span>
-                        <span class="tweet-badge badge-green"><i class="fa-solid fa-bolt"></i> Chất lượng gốc</span>
+                <div class="download-action-card">
+                    <div class="meta-tags-bar">
+                        <span class="status-chip chip-instagram"><i class="fa-solid fa-images"></i> Instagram ${count} ảnh gốc HD</span>
+                        <span class="status-chip chip-success"><i class="fa-solid fa-bolt"></i> Chất lượng gốc</span>
                     </div>
-                    <div class="actions-buttons">
-                        <button id="btn-dl-ig-all-photos" class="btn btn-instagram btn-glow">
+                    <div class="action-buttons-stack">
+                        <button id="btn-dl-ig-all-photos" class="btn-cta btn-cta-instagram">
                             <i class="fa-solid fa-cloud-arrow-down"></i>
                             <span>Tải tất cả ${count} ảnh · 1 Phát</span>
-                            <span class="btn-badge">PNG</span>
+                            <span class="cta-badge-tag">PNG</span>
                         </button>
                     </div>
                 </div>
             `;
         } else if (data.has_video && data.video_url) {
             mediaHtml = `
-                <div class="media-container video-wrapper">
+                <div class="media-box-wrapper video-container">
                     <video id="player-video" controls poster="${data.cover || ''}" playsinline>
                         <source src="${data.video_url}" type="video/mp4">
                     </video>
@@ -567,19 +564,19 @@ document.addEventListener("DOMContentLoaded", () => {
             `;
 
             actionsHtml = `
-                <div class="download-actions-card">
-                    <div class="dl-meta-row">
-                        <span class="tweet-badge badge-instagram"><i class="fa-solid fa-film"></i> Instagram Video / Reels HD</span>
-                        <span class="tweet-badge badge-green"><i class="fa-solid fa-bolt"></i> Bản gốc</span>
+                <div class="download-action-card">
+                    <div class="meta-tags-bar">
+                        <span class="status-chip chip-instagram"><i class="fa-solid fa-film"></i> Instagram Video / Reels HD</span>
+                        <span class="status-chip chip-success"><i class="fa-solid fa-bolt"></i> Bản gốc</span>
                     </div>
-                    <div class="actions-buttons">
-                        <button id="btn-dl-ig-video" class="btn btn-instagram btn-glow">
+                    <div class="action-buttons-stack">
+                        <button id="btn-dl-ig-video" class="btn-cta btn-cta-instagram">
                             <i class="fa-solid fa-download"></i>
                             <span>Tải Reels / Video về máy</span>
-                            <span class="btn-badge">MP4</span>
+                            <span class="cta-badge-tag">MP4</span>
                         </button>
                         ${data.has_music ? `
-                        <a href="/api/stream-file?url=${encodeURIComponent(data.video_url)}&name=${encodeURIComponent('IG_Audio_' + data.id)}&ext=mp3" class="btn btn-music" download target="_blank">
+                        <a href="/api/stream-file?url=${encodeURIComponent(data.video_url)}&name=${encodeURIComponent('IG_Audio_' + data.id)}&ext=mp3" class="btn-cta btn-cta-music" download target="_blank">
                             <i class="fa-solid fa-music"></i>
                             <span>Tải Âm Thanh MP3</span>
                         </a>` : ''}
@@ -589,25 +586,25 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         resultContainer.innerHTML = `
-            <div class="result-card glass-panel luxury-border">
+            <div class="result-card">
                 <!-- Author Header -->
-                <div class="tweet-author-header">
-                    <div class="author-profile">
-                        <div class="ig-avatar-icon">
+                <div class="card-author-bar">
+                    <div class="author-profile-group">
+                        <div class="avatar-icon-brand ig-icon">
                             <i class="fa-brands fa-instagram"></i>
                         </div>
-                        <div class="author-meta">
+                        <div class="author-meta-text">
                             <h4>${escapeHtml(data.author_name)} <i class="fa-solid fa-circle-check verified-icon"></i></h4>
-                            <span class="author-handle">@${escapeHtml(data.author_username)}</span>
+                            <span class="author-handle-text">@${escapeHtml(data.author_username)}</span>
                         </div>
                     </div>
-                    <a href="${data.url}" target="_blank" class="btn btn-sm btn-secondary" title="Xem trên Instagram">
+                    <a href="${data.url}" target="_blank" class="btn-open-origin" title="Xem trên Instagram">
                         <i class="fa-brands fa-instagram"></i> Mở Instagram
                     </a>
                 </div>
 
                 <!-- Title / Caption -->
-                ${data.title ? `<p class="tweet-text">${formatTweetText(data.title)}</p>` : ''}
+                ${data.title ? `<p class="card-caption-text">${formatTweetText(data.title)}</p>` : ''}
 
                 <!-- Media Preview -->
                 ${mediaHtml}
@@ -622,7 +619,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function attachInstagramEvents(data) {
-        const mediaItems = resultContainer.querySelectorAll(".media-item");
+        const mediaItems = resultContainer.querySelectorAll(".gallery-photo-item");
         mediaItems.forEach(item => {
             item.addEventListener("click", () => {
                 const origUrl = item.getAttribute("data-orig");
@@ -680,7 +677,8 @@ document.addEventListener("DOMContentLoaded", () => {
     function renderTikTokDouyinResult(data) {
         const isDouyin = data.platform === "douyin";
         const platformName = isDouyin ? "Douyin (抖音)" : "TikTok";
-        const platformClass = isDouyin ? "badge-douyin" : "badge-tiktok";
+        const platformChipClass = isDouyin ? "chip-douyin" : "chip-tiktok";
+        const platformBtnClass = isDouyin ? "btn-cta-tiktok" : "btn-cta-tiktok";
         const platformIcon = isDouyin ? "fa-compact-disc" : "fa-tiktok";
 
         let mediaContentHtml = "";
@@ -691,35 +689,35 @@ document.addEventListener("DOMContentLoaded", () => {
             const gridClass = count === 1 ? "grid-1" : (count === 2 ? "grid-2" : (count === 3 ? "grid-3" : "grid-more"));
 
             const photoItems = data.photos.map((p, idx) => `
-                <div class="media-item" data-orig="${p.download_url}">
-                    <span class="media-badge-photo-idx"><i class="fa-solid fa-image"></i> ${idx + 1}/${count}</span>
+                <div class="gallery-photo-item" data-orig="${p.download_url}">
+                    <span class="photo-index-tag"><i class="fa-solid fa-image"></i> ${idx + 1}/${count}</span>
                     <img src="${p.preview_url}" alt="Photo ${idx + 1}" loading="lazy">
-                    <div class="media-overlay">
-                        <div class="btn-preview-circle"><i class="fa-solid fa-magnifying-glass-plus"></i></div>
+                    <div class="photo-hover-overlay">
+                        <div class="zoom-icon-circle"><i class="fa-solid fa-magnifying-glass-plus"></i></div>
                     </div>
                 </div>
             `).join("");
 
             mediaContentHtml = `
-                <div class="media-container image-grid ${gridClass}">
+                <div class="image-gallery-grid ${gridClass}">
                     ${photoItems}
                 </div>
             `;
 
             actionsHtml = `
-                <div class="download-actions-card">
-                    <div class="dl-meta-row">
-                        <span class="tweet-badge ${platformClass}"><i class="fa-solid fa-images"></i> Album ${count} ảnh gốc chất lượng cao</span>
-                        <span class="tweet-badge badge-green"><i class="fa-solid fa-bolt"></i> Không Watermark</span>
+                <div class="download-action-card">
+                    <div class="meta-tags-bar">
+                        <span class="status-chip ${platformChipClass}"><i class="fa-solid fa-images"></i> Album ${count} ảnh gốc chất lượng cao</span>
+                        <span class="status-chip chip-success"><i class="fa-solid fa-bolt"></i> Không Watermark</span>
                     </div>
-                    <div class="actions-buttons">
-                        <button id="btn-dl-tt-all-photos" class="btn btn-primary btn-glow">
+                    <div class="action-buttons-stack">
+                        <button id="btn-dl-tt-all-photos" class="btn-cta btn-cta-primary">
                             <i class="fa-solid fa-cloud-arrow-down"></i>
                             <span>Tải toàn bộ ${count} ảnh · 1 Phát</span>
-                            <span class="btn-badge">PNG</span>
+                            <span class="cta-badge-tag">PNG</span>
                         </button>
                         ${data.has_music ? `
-                        <a href="/api/stream-file?url=${encodeURIComponent(data.music_url)}&name=${encodeURIComponent(platformName + '_Music_' + data.id)}&ext=mp3" class="btn btn-music" download target="_blank">
+                        <a href="/api/stream-file?url=${encodeURIComponent(data.music_url)}&name=${encodeURIComponent(platformName + '_Music_' + data.id)}&ext=mp3" class="btn-cta btn-cta-music" download target="_blank">
                             <i class="fa-solid fa-music"></i>
                             <span>Tải Nhạc Nền MP3</span>
                         </a>` : ''}
@@ -728,7 +726,7 @@ document.addEventListener("DOMContentLoaded", () => {
             `;
         } else if (data.has_video && data.video_url) {
             mediaContentHtml = `
-                <div class="media-container video-wrapper">
+                <div class="media-box-wrapper video-container">
                     <video id="player-video" controls poster="${data.cover || ''}" playsinline>
                         <source src="${data.video_url}" type="video/mp4">
                     </video>
@@ -736,22 +734,21 @@ document.addEventListener("DOMContentLoaded", () => {
             `;
 
             actionsHtml = `
-                <div class="download-actions-card">
-                    <div class="dl-meta-row">
-                        <span class="tweet-badge ${platformClass}"><i class="fa-solid fa-bolt"></i> Video HD Không Logo (No-Watermark)</span>
-                        <span class="tweet-badge badge-green"><i class="fa-solid fa-clock"></i> ${data.duration_str}</span>
+                <div class="download-action-card">
+                    <div class="meta-tags-bar">
+                        <span class="status-chip ${platformChipClass}"><i class="fa-solid fa-bolt"></i> Video HD Không Logo (No-Watermark)</span>
+                        <span class="status-chip chip-success"><i class="fa-solid fa-clock"></i> ${data.duration_str}</span>
                     </div>
-                    <div class="actions-buttons">
-                        <button id="btn-dl-tt-video" class="btn ${isDouyin ? 'btn-douyin' : 'btn-tiktok'} btn-glow">
+                    <div class="action-buttons-stack">
+                        <button id="btn-dl-tt-video" class="btn-cta ${platformBtnClass}">
                             <i class="fa-solid fa-download"></i>
                             <span>Tải Video Không Logo</span>
-                            <span class="btn-badge">MP4</span>
+                            <span class="cta-badge-tag">MP4</span>
                         </button>
                         ${data.has_music ? `
-                        <a href="/api/stream-file?url=${encodeURIComponent(data.music_url)}&name=${encodeURIComponent(platformName + '_Music_' + data.id)}&ext=mp3" class="btn btn-music" download target="_blank">
+                        <a href="/api/stream-file?url=${encodeURIComponent(data.music_url)}&name=${encodeURIComponent(platformName + '_Music_' + data.id)}&ext=mp3" class="btn-cta btn-cta-music" download target="_blank">
                             <i class="fa-solid fa-music"></i>
                             <span>Tải Âm Thanh MP3</span>
-                            <span class="btn-badge">MP3</span>
                         </a>` : ''}
                     </div>
                 </div>
@@ -761,23 +758,23 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         resultContainer.innerHTML = `
-            <div class="result-card glass-panel luxury-border">
+            <div class="result-card">
                 <!-- Author Header -->
-                <div class="tweet-author-header">
-                    <div class="author-profile">
-                        <img class="author-avatar" src="${data.author_avatar || 'https://p16-sign-sg.tiktokcdn.com/tos-alisg-avt-0068/default.jpeg'}" alt="Avatar">
-                        <div class="author-meta">
+                <div class="card-author-bar">
+                    <div class="author-profile-group">
+                        <img class="avatar-circle" src="${data.author_avatar || 'https://p16-sign-sg.tiktokcdn.com/tos-alisg-avt-0068/default.jpeg'}" alt="Avatar">
+                        <div class="author-meta-text">
                             <h4>${escapeHtml(data.author_name)} <i class="fa-solid fa-circle-check verified-icon"></i></h4>
-                            <span class="author-handle">@${escapeHtml(data.author_username)}</span>
+                            <span class="author-handle-text">@${escapeHtml(data.author_username)}</span>
                         </div>
                     </div>
-                    <a href="${data.url}" target="_blank" class="btn btn-sm btn-secondary" title="Xem bài viết gốc">
+                    <a href="${data.url}" target="_blank" class="btn-open-origin" title="Xem bài viết gốc">
                         <i class="fa-solid ${platformIcon}"></i> Mở ${platformName}
                     </a>
                 </div>
 
                 <!-- Video / Slide Title -->
-                ${data.title ? `<p class="tweet-text">${formatTweetText(data.title)}</p>` : ''}
+                ${data.title ? `<p class="card-caption-text">${formatTweetText(data.title)}</p>` : ''}
 
                 <!-- Media Preview -->
                 ${mediaContentHtml}
@@ -792,7 +789,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function attachTikTokDouyinEvents(data) {
-        const mediaItems = resultContainer.querySelectorAll(".media-item");
+        const mediaItems = resultContainer.querySelectorAll(".gallery-photo-item");
         mediaItems.forEach(item => {
             item.addEventListener("click", () => {
                 const origUrl = item.getAttribute("data-orig");
@@ -852,63 +849,61 @@ document.addEventListener("DOMContentLoaded", () => {
         const savedDefaultMp3 = localStorage.getItem("setting_default_mp3") || "320";
 
         resultContainer.innerHTML = `
-            <div class="result-card glass-panel luxury-border">
+            <div class="result-card">
                 <!-- Channel Info Header -->
-                <div class="tweet-author-header">
-                    <div class="author-profile">
-                        <div class="channel-avatar-icon">
+                <div class="card-author-bar">
+                    <div class="author-profile-group">
+                        <div class="avatar-icon-brand yt-icon">
                             <i class="fa-brands fa-youtube"></i>
                         </div>
-                        <div class="author-meta">
+                        <div class="author-meta-text">
                             <h4>${escapeHtml(data.uploader)} <i class="fa-solid fa-circle-check verified-icon"></i></h4>
-                            <span class="author-handle"><i class="fa-solid fa-eye"></i> ${data.view_count} lượt xem</span>
+                            <span class="author-handle-text"><i class="fa-solid fa-eye"></i> ${data.view_count} lượt xem</span>
                         </div>
                     </div>
-                    <a href="${data.url}" target="_blank" class="btn btn-sm btn-secondary" title="Xem trên YouTube">
+                    <a href="${data.url}" target="_blank" class="btn-open-origin" title="Xem trên YouTube">
                         <i class="fa-brands fa-youtube"></i> Mở YouTube
                     </a>
                 </div>
 
                 <!-- Video Title -->
-                <p class="tweet-text" style="font-weight: 700; font-size: 16px;">${escapeHtml(data.title)}</p>
+                <p class="card-caption-text" style="font-weight: 700; font-size: 0.95rem;">${escapeHtml(data.title)}</p>
 
                 <!-- Media Preview -->
-                <div class="yt-media-preview">
-                    <img class="yt-thumbnail-img" src="${data.thumbnail}" alt="Thumbnail">
-                    <span class="yt-duration-badge"><i class="fa-solid fa-clock"></i> ${data.duration_str}</span>
+                <div class="media-box-wrapper" style="position: relative;">
+                    <img src="${data.thumbnail}" alt="Thumbnail" style="width: 100%; max-height: 400px; object-fit: cover; display: block;">
+                    <span class="photo-index-tag" style="top: auto; bottom: 8px; right: 8px; left: auto;"><i class="fa-solid fa-clock"></i> ${data.duration_str}</span>
                 </div>
 
-                <!-- Download & Conversion Actions Card -->
-                <div class="download-actions-card">
+                <!-- Download Actions Card -->
+                <div class="download-action-card">
                     <!-- Format Switcher -->
-                    <div class="format-switch-container">
-                        <button type="button" class="format-tab-btn active" data-mode="mp3">
+                    <div class="platform-nav-tabs" style="width: 100%; justify-content: center; margin-bottom: 4px;">
+                        <button type="button" class="nav-tab active yt-mode-btn" data-mode="mp3" style="flex: 1; justify-content: center;">
                             <i class="fa-solid fa-music"></i> Âm Thanh MP3
                         </button>
-                        <button type="button" class="format-tab-btn" data-mode="video">
+                        <button type="button" class="nav-tab yt-mode-btn" data-mode="video" style="flex: 1; justify-content: center;">
                             <i class="fa-solid fa-film"></i> Video MP4
                         </button>
                     </div>
 
                     <!-- Quality Selectors -->
-                    <div class="actions-top">
-                        <div class="quality-select-wrapper" id="yt-quality-box">
-                            <label for="select-yt-quality" id="yt-quality-label"><i class="fa-solid fa-sliders"></i> Chất lượng MP3:</label>
-                            <select id="select-yt-quality" class="select-quality">
+                    <div class="meta-tags-bar">
+                        <div class="quality-dropdown-wrap" id="yt-quality-box">
+                            <i class="fa-solid fa-sliders"></i>
+                            <select id="select-yt-quality" class="quality-select-native">
                                 ${data.audio_qualities.map(a => `<option value="${a.id}" ${a.id === savedDefaultMp3 ? 'selected' : ''}>${a.label}</option>`).join("")}
                             </select>
                         </div>
-                        <div class="badge-info">
-                            <span id="yt-badge-display" class="tweet-badge mp3-badge"><i class="fa-solid fa-bolt"></i> Chuẩn 320kbps</span>
-                        </div>
+                        <span id="yt-badge-display" class="status-chip chip-youtube"><i class="fa-solid fa-bolt"></i> Chuẩn 320kbps</span>
                     </div>
 
                     <!-- Action Buttons -->
-                    <div class="actions-buttons">
-                        <button id="btn-yt-download-server" class="btn btn-music btn-glow">
+                    <div class="action-buttons-stack">
+                        <button id="btn-yt-download-server" class="btn-cta btn-cta-youtube">
                             <i class="fa-solid fa-cloud-arrow-down"></i> <span id="txt-yt-server-btn">Tải MP3 về máy</span>
                         </button>
-                        <a id="btn-yt-download-browser" href="/api/stream-youtube?url=${encodeURIComponent(data.url)}&type=mp3&quality=${savedDefaultMp3}&title=${encodeURIComponent(data.title)}" class="btn btn-secondary" target="_blank">
+                        <a id="btn-yt-download-browser" href="/api/stream-youtube?url=${encodeURIComponent(data.url)}&type=mp3&quality=${savedDefaultMp3}&title=${encodeURIComponent(data.title)}" class="btn-cta btn-cta-secondary" target="_blank">
                             <i class="fa-solid fa-globe"></i> <span id="txt-yt-browser-btn">Tải qua trình duyệt</span>
                         </a>
                     </div>
@@ -921,9 +916,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function attachYouTubeEvents(data) {
-        const formatTabs = resultContainer.querySelectorAll(".format-tab-btn");
+        const formatTabs = resultContainer.querySelectorAll(".yt-mode-btn");
         const selectQuality = document.getElementById("select-yt-quality");
-        const qualityLabel = document.getElementById("yt-quality-label");
         const badgeDisplay = document.getElementById("yt-badge-display");
         const btnServer = document.getElementById("btn-yt-download-server");
         const btnBrowser = document.getElementById("btn-yt-download-browser");
@@ -938,20 +932,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 if (selectedYtMode === "mp3") {
                     const savedDefaultMp3 = localStorage.getItem("setting_default_mp3") || "320";
-                    qualityLabel.innerHTML = `<i class="fa-solid fa-sliders"></i> Chất lượng MP3:`;
                     selectQuality.innerHTML = data.audio_qualities.map(a => `<option value="${a.id}" ${a.id === savedDefaultMp3 ? 'selected' : ''}>${a.label}</option>`).join("");
-                    badgeDisplay.className = "tweet-badge mp3-badge";
+                    badgeDisplay.className = "status-chip chip-youtube";
                     badgeDisplay.innerHTML = `<i class="fa-solid fa-music"></i> Chuẩn 320kbps`;
-                    btnServer.className = "btn btn-music btn-glow";
                     txtServerBtn.innerText = "Tải MP3 về máy";
                     txtBrowserBtn.innerText = "Tải qua trình duyệt";
                 } else {
                     const savedDefaultVid = localStorage.getItem("setting_default_video") || "best";
-                    qualityLabel.innerHTML = `<i class="fa-solid fa-sliders"></i> Độ phân giải Video:`;
                     selectQuality.innerHTML = data.video_qualities.map(v => `<option value="${v.id}" ${v.format_id === savedDefaultVid ? 'selected' : ''}>${v.label}</option>`).join("");
-                    badgeDisplay.className = "tweet-badge yt-badge";
+                    badgeDisplay.className = "status-chip chip-youtube";
                     badgeDisplay.innerHTML = `<i class="fa-solid fa-film"></i> Video MP4 Full HD`;
-                    btnServer.className = "btn btn-youtube btn-glow";
                     txtServerBtn.innerText = "Tải Video về máy";
                     txtBrowserBtn.innerText = "Tải qua trình duyệt";
                 }
@@ -1174,57 +1164,61 @@ document.addEventListener("DOMContentLoaded", () => {
             ).join("");
 
             mediaHtml = `
-                <div class="media-container video-wrapper">
+                <div class="media-box-wrapper video-container">
                     <video id="player-video" controls poster="${video.preview_url || ''}">
                         <source src="${video.download_url}" type="video/mp4">
                     </video>
                 </div>
 
-                <div class="download-actions-card">
-                    <div class="dl-meta-row">
-                        <span class="tweet-badge"><i class="fa-solid fa-film"></i> Video MP4 gốc · Không nén</span>
+                <div class="download-action-card">
+                    <div class="meta-tags-bar">
+                        <span class="status-chip chip-twitter"><i class="fa-solid fa-film"></i> Video MP4 gốc · Không nén</span>
                         ${qualities.length > 1 ? `
-                        <div class="quality-select-wrapper compact">
+                        <div class="quality-dropdown-wrap">
                             <i class="fa-solid fa-sliders"></i>
-                            <select id="select-video-quality" class="select-quality">${qualityOptionsHtml}</select>
+                            <select id="select-video-quality" class="quality-select-native">${qualityOptionsHtml}</select>
                         </div>` : `<input type="hidden" id="select-video-quality" value="${video.download_url}">`}
                     </div>
-                    <button id="btn-dl-video-server" class="btn btn-primary btn-full btn-glow">
-                        <i class="fa-solid fa-download"></i>
-                        <span>Tải Video về máy</span>
-                        <span class="btn-badge">MP4</span>
-                    </button>
+                    <div class="action-buttons-stack">
+                        <button id="btn-dl-video-server" class="btn-cta btn-cta-twitter">
+                            <i class="fa-solid fa-download"></i>
+                            <span>Tải Video về máy</span>
+                            <span class="cta-badge-tag">MP4</span>
+                        </button>
+                    </div>
                 </div>
             `;
         } else if (hasPhotos) {
             const count = data.photos.length;
-            const gridClass = count === 1 ? "grid-1" : (count === 2 ? "grid-2" : (count === 3 ? "grid-3" : "grid-4"));
+            const gridClass = count === 1 ? "grid-1" : (count === 2 ? "grid-2" : (count === 3 ? "grid-3" : "grid-more"));
 
             let photoItems = data.photos.map((p, idx) => `
-                <div class="media-item" data-orig="${p.download_url}" data-preview="${p.preview_url}">
-                    <span class="media-badge-orig"><i class="fa-solid fa-expand"></i> :orig</span>
+                <div class="gallery-photo-item" data-orig="${p.download_url}" data-preview="${p.preview_url}">
+                    <span class="photo-index-tag"><i class="fa-solid fa-expand"></i> :orig</span>
                     <img src="${p.preview_url}" alt="Photo ${idx+1}" loading="lazy">
-                    <div class="media-overlay">
-                        <div class="btn-preview-circle"><i class="fa-solid fa-magnifying-glass-plus"></i></div>
+                    <div class="photo-hover-overlay">
+                        <div class="zoom-icon-circle"><i class="fa-solid fa-magnifying-glass-plus"></i></div>
                     </div>
                 </div>
             `).join("");
 
             mediaHtml = `
-                <div class="media-container image-grid ${gridClass}">
+                <div class="image-gallery-grid ${gridClass}">
                     ${photoItems}
                 </div>
 
-                <div class="download-actions-card">
-                    <div class="dl-meta-row">
-                        <span class="tweet-badge"><i class="fa-solid fa-images"></i> ${count} ảnh gốc chất lượng cao</span>
-                        <span class="tweet-badge badge-green"><i class="fa-solid fa-download"></i> Tải thẳng từng ảnh PNG</span>
+                <div class="download-action-card">
+                    <div class="meta-tags-bar">
+                        <span class="status-chip chip-twitter"><i class="fa-solid fa-images"></i> ${count} ảnh gốc chất lượng cao</span>
+                        <span class="status-chip chip-success"><i class="fa-solid fa-download"></i> Tải ảnh PNG gốc</span>
                     </div>
-                    <button id="btn-dl-photos-server" class="btn btn-primary btn-full btn-glow">
-                        <i class="fa-solid fa-cloud-arrow-down"></i>
-                        <span>Tải tất cả ${count} ảnh · 1 phát</span>
-                        <span class="btn-badge">PNG</span>
-                    </button>
+                    <div class="action-buttons-stack">
+                        <button id="btn-dl-photos-server" class="btn-cta btn-cta-twitter">
+                            <i class="fa-solid fa-cloud-arrow-down"></i>
+                            <span>Tải tất cả ${count} ảnh · 1 phát</span>
+                            <span class="cta-badge-tag">PNG</span>
+                        </button>
+                    </div>
                 </div>
             `;
         } else {
@@ -1232,23 +1226,23 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         resultContainer.innerHTML = `
-            <div class="result-card glass-panel luxury-border">
+            <div class="result-card">
                 <!-- Tweet Author Header -->
-                <div class="tweet-author-header">
-                    <div class="author-profile">
-                        <img class="author-avatar" src="${data.author_avatar || 'https://abs.twimg.com/sticky/default_profile_images/default_profile_normal.png'}" alt="Avatar">
-                        <div class="author-meta">
+                <div class="card-author-bar">
+                    <div class="author-profile-group">
+                        <img class="avatar-circle" src="${data.author_avatar || 'https://abs.twimg.com/sticky/default_profile_images/default_profile_normal.png'}" alt="Avatar">
+                        <div class="author-meta-text">
                             <h4>${escapeHtml(data.author_name)} <i class="fa-solid fa-circle-check verified-icon"></i></h4>
-                            <span class="author-handle">@${escapeHtml(data.author_username || 'user')}</span>
+                            <span class="author-handle-text">@${escapeHtml(data.author_username || 'user')}</span>
                         </div>
                     </div>
-                    <a href="https://x.com/i/status/${data.tweet_id}" target="_blank" class="btn btn-sm btn-secondary" title="Xem trên X">
+                    <a href="https://x.com/i/status/${data.tweet_id}" target="_blank" class="btn-open-origin" title="Xem trên X">
                         <i class="fa-brands fa-x-twitter"></i> Xem bài viết
                     </a>
                 </div>
 
                 <!-- Tweet Text Content -->
-                ${data.text ? `<p class="tweet-text">${formatTweetText(data.text)}</p>` : ''}
+                ${data.text ? `<p class="card-caption-text">${formatTweetText(data.text)}</p>` : ''}
 
                 <!-- Media Section -->
                 ${mediaHtml}
@@ -1260,7 +1254,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function attachTwitterEvents(data) {
-        const mediaItems = resultContainer.querySelectorAll(".media-item");
+        const mediaItems = resultContainer.querySelectorAll(".gallery-photo-item");
         mediaItems.forEach(item => {
             item.addEventListener("click", () => {
                 const origUrl = item.getAttribute("data-orig");

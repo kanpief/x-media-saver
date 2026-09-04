@@ -8,87 +8,89 @@
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
     <!-- Font Awesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <!-- Custom CSS -->
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
-    <!-- Background Ambient Glows -->
-    <div class="ambient-glow glow-1"></div>
-    <div class="ambient-glow glow-2"></div>
-    <div class="ambient-glow glow-3"></div>
-    <div class="ambient-grid-overlay"></div>
+    <!-- Ambient Background Lighting -->
+    <div class="bg-lights">
+        <div class="light-orb orb-primary"></div>
+        <div class="light-orb orb-secondary"></div>
+        <div class="light-orb orb-tertiary"></div>
+        <div class="bg-grid-mesh"></div>
+    </div>
 
-    <div class="app-container">
-        <!-- Header -->
+    <div class="app-layout">
+        <!-- Main Top Bar -->
         <header class="app-header">
-            <div class="brand">
-                <div class="brand-logo-wrapper">
-                    <div class="brand-logo">
-                        <i class="fa-solid fa-bolt-lightning"></i>
-                    </div>
-                    <div class="status-indicator" title="Hệ thống sẵn sàng"></div>
+            <div class="brand-group">
+                <div class="brand-badge-icon">
+                    <i class="fa-solid fa-bolt-lightning"></i>
+                    <span class="live-dot" title="Hệ thống trực tuyến"></span>
                 </div>
-                <div class="brand-info">
-                    <div class="brand-title-row">
-                        <h1>Media <span class="gradient-text">Pro Saver</span></h1>
-                        <span class="version-badge">ULTRA 4.5</span>
+                <div class="brand-text">
+                    <div class="brand-heading">
+                        <h1>Media <span class="highlight-gradient">Pro Saver</span></h1>
+                        <span class="pill-version">PRO 5.0</span>
                     </div>
-                    <p class="subtitle">Tải ảnh gốc <strong>:orig</strong>, Video <strong>Không Logo</strong> & <strong>MP3 320k</strong></p>
+                    <p class="brand-tagline">Tải video không logo, ảnh gốc & âm thanh chất lượng cao</p>
                 </div>
             </div>
             
             <div class="header-actions">
-                <button id="btn-toggle-settings" class="btn btn-secondary btn-icon-only" title="Tùy chỉnh chất lượng & thiết lập">
+                <button id="btn-toggle-settings" class="action-btn-circle" title="Tùy chỉnh chất lượng & Cookies">
                     <i class="fa-solid fa-sliders"></i>
                 </button>
             </div>
         </header>
 
-        <!-- Main Content -->
-        <main class="main-content">
-            <!-- Search & Input Card -->
-            <section class="input-card glass-panel luxury-border">
-                <!-- Mobile-Optimized Segmented Platform Tabs -->
-                <div class="platform-tabs-wrapper">
-                    <div class="platform-tabs">
-                        <button class="tab-btn active" data-platform="all">
+        <!-- Main Body -->
+        <main class="app-main">
+            <!-- Search & Downloader Card -->
+            <section class="hero-card">
+                <!-- Platform Tabs (Smooth Horizontal Scrollable on Mobile) -->
+                <nav class="platform-nav-wrapper">
+                    <div class="platform-nav-tabs" role="tablist">
+                        <button class="nav-tab active" data-platform="all">
                             <i class="fa-solid fa-wand-magic-sparkles"></i>
-                            <span>Tự động</span>
+                            <span>Tất cả</span>
                         </button>
-                        <button class="tab-btn" data-platform="twitter">
+                        <button class="nav-tab tab-twitter" data-platform="twitter">
                             <i class="fa-brands fa-x-twitter"></i>
                             <span>Twitter (X)</span>
                         </button>
-                        <button class="tab-btn" data-platform="youtube">
+                        <button class="nav-tab tab-youtube" data-platform="youtube">
                             <i class="fa-brands fa-youtube"></i>
                             <span>YouTube</span>
                         </button>
-                        <button class="tab-btn" data-platform="tiktok">
+                        <button class="nav-tab tab-tiktok" data-platform="tiktok">
                             <i class="fa-brands fa-tiktok"></i>
                             <span>TikTok</span>
                         </button>
-                        <button class="tab-btn" data-platform="douyin">
+                        <button class="nav-tab tab-douyin" data-platform="douyin">
                             <i class="fa-solid fa-compact-disc"></i>
                             <span>Douyin</span>
                         </button>
-                        <button class="tab-btn" data-platform="facebook">
+                        <button class="nav-tab tab-facebook" data-platform="facebook">
                             <i class="fa-brands fa-facebook"></i>
                             <span>Facebook</span>
                         </button>
-                        <button class="tab-btn" data-platform="instagram">
+                        <button class="nav-tab tab-instagram" data-platform="instagram">
                             <i class="fa-brands fa-instagram"></i>
                             <span>Instagram</span>
                         </button>
                     </div>
-                </div>
+                </nav>
 
-                <form id="extract-form" class="search-form">
-                    <div class="input-wrapper" id="main-input-wrapper">
-                        <div class="input-glow-bg"></div>
-                        <i class="fa-solid fa-link input-icon" id="input-platform-icon"></i>
+                <!-- Input Box Form -->
+                <form id="extract-form" class="downloader-form">
+                    <div class="input-container" id="main-input-wrapper">
+                        <div class="input-leading-icon">
+                            <i class="fa-solid fa-link" id="input-platform-icon"></i>
+                        </div>
                         <input 
                             type="text" 
                             id="tweet-url-input" 
@@ -97,178 +99,178 @@
                             spellcheck="false"
                             required
                         >
-                        <div class="input-actions">
-                            <button type="button" id="btn-clear" class="action-chip btn-clear hidden" title="Xóa nội dung">
+                        <div class="input-trailing-actions">
+                            <button type="button" id="btn-clear" class="btn-input-action btn-clear hidden" title="Xóa nội dung">
                                 <i class="fa-solid fa-xmark"></i>
                             </button>
-                            <button type="button" id="btn-paste" class="action-chip btn-paste-glow" title="Dán từ Clipboard">
+                            <button type="button" id="btn-paste" class="btn-input-action btn-paste" title="Dán từ Clipboard">
                                 <i class="fa-regular fa-clipboard"></i>
-                                <span>Dán link</span>
+                                <span>Dán</span>
                             </button>
                         </div>
                     </div>
 
                     <!-- Instant Format Detection Badge (0ms detection) -->
-                    <div id="format-detected-badge" class="format-detected-badge hidden">
+                    <div id="format-detected-badge" class="format-badge-box hidden">
                         <i class="fa-solid fa-circle-check"></i>
                         <span id="detected-text">Đã phát hiện liên kết hợp lệ</span>
                     </div>
 
-                    <!-- Instant Warning Alert Box (Khi dán link sai định dạng) -->
-                    <div id="format-warning-box" class="format-warning-box hidden">
-                        <div class="warning-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
-                        <div class="warning-content">
-                            <strong>Định dạng liên kết không được hỗ trợ!</strong>
-                            <p>Vui lòng dán liên kết từ <strong>X (Twitter)</strong>, <strong>YouTube</strong>, <strong>TikTok</strong>, <strong>Douyin</strong>, <strong>Facebook</strong> hoặc <strong>Instagram</strong>.</p>
+                    <!-- Instant Warning Alert Box (Khi link sai) -->
+                    <div id="format-warning-box" class="format-alert-box hidden">
+                        <div class="alert-icon-wrap"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                        <div class="alert-text-wrap">
+                            <h6>Liên kết chưa được hỗ trợ</h6>
+                            <p>Vui lòng dán link từ <strong>Twitter (X)</strong>, <strong>YouTube</strong>, <strong>TikTok</strong>, <strong>Douyin</strong>, <strong>Facebook</strong> hoặc <strong>Instagram</strong>.</p>
                         </div>
                     </div>
 
-                    <button type="submit" id="btn-submit" class="btn btn-primary btn-glow">
+                    <button type="submit" id="btn-submit" class="btn-submit-main">
                         <span class="btn-text">
-                            <i class="fa-solid fa-bolt"></i>
-                            <span>Phân Tích Ngay</span>
+                            <i class="fa-solid fa-bolt-lightning"></i>
+                            <span>Phân Tích & Tải Ngay</span>
                         </span>
                         <span class="btn-loader hidden">
                             <i class="fa-solid fa-circle-notch fa-spin"></i>
-                            <span>Đang trích xuất dữ liệu...</span>
+                            <span>Đang xử lý dữ liệu...</span>
                         </span>
                     </button>
                 </form>
 
-                <!-- Clean Compact Feature Tags -->
-                <div class="feature-pills">
-                    <span class="pill pill-x"><i class="fa-brands fa-x-twitter"></i> X <strong>:orig & 4K</strong></span>
-                    <span class="pill pill-yt"><i class="fa-brands fa-youtube"></i> YouTube <strong>MP4 & MP3</strong></span>
-                    <span class="pill pill-tt"><i class="fa-brands fa-tiktok"></i> TikTok <strong>Không Logo</strong></span>
-                    <span class="pill pill-dy"><i class="fa-solid fa-compact-disc"></i> Douyin <strong>Album Ảnh</strong></span>
-                    <span class="pill pill-fb"><i class="fa-brands fa-facebook"></i> Facebook <strong>HD & Reels</strong></span>
-                    <span class="pill pill-ig"><i class="fa-brands fa-instagram"></i> Instagram <strong>Ảnh & Reels</strong></span>
+                <!-- Feature Mini Tags -->
+                <div class="feature-badges-row">
+                    <div class="f-badge f-x"><i class="fa-brands fa-x-twitter"></i> Ảnh <strong>:orig</strong> & 4K</div>
+                    <div class="f-badge f-yt"><i class="fa-brands fa-youtube"></i> MP4 & <strong>MP3 320k</strong></div>
+                    <div class="f-badge f-tt"><i class="fa-brands fa-tiktok"></i> Không Logo</div>
+                    <div class="f-badge f-fb"><i class="fa-brands fa-facebook"></i> Video HD & Reels</div>
+                    <div class="f-badge f-ig"><i class="fa-brands fa-instagram"></i> Ảnh & Video HD</div>
                 </div>
             </section>
 
-            <!-- Loading State Skeleton -->
-            <div id="skeleton-loading" class="skeleton-container hidden">
-                <div class="skeleton-card glass-panel">
-                    <div class="skeleton-header">
-                        <div class="skeleton-avatar"></div>
-                        <div class="skeleton-lines">
-                            <div class="skeleton-line w-40"></div>
-                            <div class="skeleton-line w-25"></div>
+            <!-- Loading Skeleton -->
+            <div id="skeleton-loading" class="skeleton-layout hidden">
+                <div class="skeleton-card">
+                    <div class="sk-header">
+                        <div class="sk-avatar"></div>
+                        <div class="sk-info">
+                            <div class="sk-line w-45"></div>
+                            <div class="sk-line w-25"></div>
                         </div>
                     </div>
-                    <div class="skeleton-line w-90"></div>
-                    <div class="skeleton-line w-75"></div>
-                    <div class="skeleton-media"></div>
+                    <div class="sk-line w-90"></div>
+                    <div class="sk-line w-70"></div>
+                    <div class="sk-player-box"></div>
                 </div>
             </div>
 
             <!-- Result Card Container -->
-            <div id="result-container" class="result-container hidden">
-                <!-- Injected via JavaScript -->
+            <div id="result-container" class="result-layout hidden">
+                <!-- Dynamically injected via JavaScript -->
             </div>
         </main>
 
-        <!-- Download Progress Active Modal (YouTube) -->
-        <div id="download-progress-modal" class="modal-backdrop hidden">
-            <div class="modal-card glass-panel progress-card">
-                <div class="progress-header">
-                    <div class="progress-icon-pulse">
+        <!-- Active Progress Modal (YouTube & Long tasks) -->
+        <div id="download-progress-modal" class="modal-overlay hidden">
+            <div class="modal-dialog progress-dialog">
+                <div class="dialog-top">
+                    <div class="pulse-download-icon">
                         <i class="fa-solid fa-cloud-arrow-down fa-bounce"></i>
                     </div>
-                    <div class="progress-title-meta">
-                        <div class="progress-top-row">
-                            <h3 id="progress-file-title">Đang chuẩn bị tải tệp...</h3>
-                            <span id="progress-percent-badge" class="progress-percent-badge">0%</span>
+                    <div class="dialog-title-meta">
+                        <div class="title-row">
+                            <h4 id="progress-file-title">Đang chuẩn bị tệp...</h4>
+                            <span id="progress-percent-badge" class="percent-badge">0%</span>
                         </div>
-                        <p id="progress-status-desc" class="modal-subtitle">Đang kết nối đến máy chủ YouTube...</p>
+                        <p id="progress-status-desc" class="status-subtitle">Đang kết nối đến máy chủ YouTube...</p>
                     </div>
                 </div>
 
-                <div class="progress-track-wrapper">
-                    <div class="progress-bar-animated">
-                        <div id="progress-bar-fill" class="progress-bar-fill" style="width: 0%;"></div>
+                <div class="progress-zone">
+                    <div class="progress-track">
+                        <div id="progress-bar-fill" class="progress-fill" style="width: 0%;"></div>
                     </div>
-                    <div class="progress-live-stats">
+                    <div class="progress-meta-info">
                         <span id="progress-size-stats"><i class="fa-solid fa-database"></i> 0 MB / 0 MB</span>
-                        <span id="progress-speed-stats"><i class="fa-solid fa-gauge-high"></i> Đang tính...</span>
+                        <span id="progress-speed-stats"><i class="fa-solid fa-gauge-high"></i> Đang tải...</span>
                     </div>
-                    <div class="progress-steps-row">
-                        <div class="p-step active" id="pstep-1"><i class="fa-solid fa-link"></i> 1. Kết nối</div>
-                        <div class="p-step" id="pstep-2"><i class="fa-solid fa-gears"></i> 2. Chuyển đổi</div>
-                        <div class="p-step" id="pstep-3"><i class="fa-solid fa-download"></i> 3. Nhận tệp</div>
+                    <div class="progress-phases">
+                        <div class="phase active" id="pstep-1"><i class="fa-solid fa-link"></i> 1. Kết nối</div>
+                        <div class="phase" id="pstep-2"><i class="fa-solid fa-gears"></i> 2. Xử lý</div>
+                        <div class="phase" id="pstep-3"><i class="fa-solid fa-download"></i> 3. Tải về máy</div>
                     </div>
                 </div>
 
-                <div class="progress-footer">
-                    <p class="progress-hint"><i class="fa-solid fa-circle-info"></i> Tệp sẽ tự động lưu vào mục <strong>Downloads</strong> trên thiết bị của bạn.</p>
-                    <button id="btn-close-progress" class="btn btn-sm btn-secondary">
+                <div class="dialog-bottom">
+                    <p class="dialog-hint"><i class="fa-solid fa-circle-info"></i> Tệp sẽ tự động lưu vào thư mục <strong>Downloads</strong>.</p>
+                    <button id="btn-close-progress" class="btn-dialog-secondary">
                         <i class="fa-solid fa-check"></i> Đã hiểu
                     </button>
                 </div>
             </div>
         </div>
 
-        <!-- Settings Modal (Tùy Chỉnh Tối Ưu) -->
-        <div id="settings-modal" class="modal-backdrop hidden">
-            <div class="modal-card glass-panel settings-card">
-                <div class="modal-header">
-                    <div class="modal-title">
-                        <div class="modal-icon-badge">
+        <!-- Settings Modal -->
+        <div id="settings-modal" class="modal-overlay hidden">
+            <div class="modal-dialog settings-dialog">
+                <div class="dialog-header">
+                    <div class="dialog-header-left">
+                        <div class="dialog-icon-box">
                             <i class="fa-solid fa-sliders"></i>
                         </div>
                         <div>
-                            <h3>Tùy Chỉnh Tối Ưu</h3>
-                            <p class="modal-subtitle">Cá nhân hóa chất lượng tải xuống</p>
+                            <h4>Tùy Chỉnh Nâng Cao</h4>
+                            <p class="dialog-subtitle">Cá nhân hóa chất lượng tải xuống</p>
                         </div>
                     </div>
-                    <button id="btn-close-settings" class="btn-close" title="Đóng">
+                    <button id="btn-close-settings" class="btn-close-dialog" title="Đóng">
                         <i class="fa-solid fa-xmark"></i>
                     </button>
                 </div>
-                <div class="modal-body settings-body">
-                    <div class="setting-group">
-                        <div class="setting-info">
+
+                <div class="dialog-body">
+                    <div class="pref-row">
+                        <div class="pref-desc">
                             <label><i class="fa-solid fa-music text-accent"></i> Chất lượng MP3 mặc định</label>
-                            <span class="setting-desc">Tự chọn bitrate ưu tiên khi tải MP3</span>
+                            <span>Bitrate ưu tiên khi trích xuất âm thanh</span>
                         </div>
-                        <select id="setting-default-mp3" class="select-quality custom-select">
+                        <select id="setting-default-mp3" class="custom-dropdown">
                             <option value="320">320 kbps (Cực cao, Lossless)</option>
                             <option value="192">192 kbps (Studio)</option>
                             <option value="128">128 kbps (Tiết kiệm)</option>
                         </select>
                     </div>
 
-                    <div class="setting-group">
-                        <div class="setting-info">
+                    <div class="pref-row">
+                        <div class="pref-desc">
                             <label><i class="fa-solid fa-film text-danger"></i> Độ phân giải Video</label>
-                            <span class="setting-desc">Chất lượng ưu tiên khi tải MP4</span>
+                            <span>Chất lượng ưu tiên khi tải video</span>
                         </div>
-                        <select id="setting-default-video" class="select-quality custom-select">
+                        <select id="setting-default-video" class="custom-dropdown">
                             <option value="best">Cao nhất (1080p / 4K / HD Gốc)</option>
                             <option value="1080">1080p Full HD</option>
                             <option value="720">720p HD</option>
-                            <option value="480">480p Tiết kiệm</option>
+                            <option value="480">480p Tiêu chuẩn</option>
                         </select>
                     </div>
 
-                    <div class="setting-group toggle-group">
-                        <div class="setting-info">
-                            <label><i class="fa-solid fa-clipboard-check text-success"></i> Tự phân tích khi dán</label>
-                            <span class="setting-desc">Tự kích hoạt phân tích ngay khi bấm nút Dán</span>
+                    <div class="pref-row switch-row">
+                        <div class="pref-desc">
+                            <label><i class="fa-solid fa-bolt text-success"></i> Tự phân tích khi Dán link</label>
+                            <span>Tự động kích hoạt khi bấm nút Dán</span>
                         </div>
-                        <label class="switch">
+                        <label class="toggle-switch">
                             <input type="checkbox" id="setting-auto-extract" checked>
-                            <span class="slider round"></span>
+                            <span class="toggle-slider"></span>
                         </label>
                     </div>
 
-                    <div class="setting-group vertical-group">
-                        <div class="setting-info">
-                            <label><i class="fa-solid fa-cookie-bite text-warning"></i> Cookies (YouTube, IG 18+)</label>
-                            <span class="setting-desc">Dán cookies Netscape nếu cần tải video bị giới hạn độ tuổi hoặc riêng tư</span>
+                    <div class="pref-row vertical-pref">
+                        <div class="pref-desc">
+                            <label><i class="fa-solid fa-cookie-bite text-warning"></i> Cookies Xác Thực (Netscape Format)</label>
+                            <span>Dán cookies từ trình duyệt nếu cần tải video Douyin, Facebook nhóm kín hoặc Instagram riêng tư</span>
                         </div>
-                        <textarea id="setting-cookies-input" class="cookies-textarea" placeholder="# Netscape HTTP Cookie File&#10;.youtube.com TRUE / FALSE ...&#10;.instagram.com TRUE / FALSE ..."></textarea>
-                        <button type="button" id="btn-save-cookies" class="btn btn-sm btn-primary">
+                        <textarea id="setting-cookies-input" class="cookies-input" placeholder="# Netscape HTTP Cookie File&#10;.douyin.com TRUE / FALSE ...&#10;.facebook.com TRUE / FALSE ...&#10;.instagram.com TRUE / FALSE ..."></textarea>
+                        <button type="button" id="btn-save-cookies" class="btn-save-cookies">
                             <i class="fa-solid fa-floppy-disk"></i> Lưu Cookies
                         </button>
                     </div>
@@ -276,26 +278,26 @@
             </div>
         </div>
 
-        <!-- Lightbox / Image Preview Modal -->
-        <div id="lightbox-modal" class="lightbox-backdrop hidden">
-            <button id="lightbox-close" class="lightbox-close" title="Đóng">
+        <!-- Lightbox / Fullscreen Image Viewer -->
+        <div id="lightbox-modal" class="lightbox-overlay hidden">
+            <button id="lightbox-close" class="btn-lightbox-close" title="Đóng">
                 <i class="fa-solid fa-xmark"></i>
             </button>
-            <div class="lightbox-content">
+            <div class="lightbox-dialog">
                 <img id="lightbox-img" src="" alt="Xem trước ảnh gốc">
-                <div class="lightbox-actions">
-                    <a id="lightbox-download-btn" href="#" class="btn btn-primary" download target="_blank">
-                        <i class="fa-solid fa-download"></i> Tải ảnh gốc chất lượng cao
+                <div class="lightbox-bottom-bar">
+                    <a id="lightbox-download-btn" href="#" class="btn-lightbox-download" download target="_blank">
+                        <i class="fa-solid fa-download"></i> Tải ảnh gốc chất lượng cao (PNG)
                     </a>
                 </div>
             </div>
         </div>
 
         <!-- Toast Notifications -->
-        <div id="toast-container" class="toast-container"></div>
+        <div id="toast-container" class="toast-stack"></div>
     </div>
 
-    <!-- Main Javascript -->
+    <!-- Main JavaScript -->
     <script src="/static/js/main.js"></script>
 </body>
 </html>
