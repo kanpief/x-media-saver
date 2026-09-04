@@ -700,128 +700,164 @@ def extract_douyin_media(raw_url: str) -> dict:
     raise ValueError("Không thể trích xuất Douyin này do cơ chế chống bot của ByteDance. Vui lòng mở Cài đặt (⚙️) và dán Cookies Douyin để tải mượt mà!")
 
 
+def resolve_tiktok_shortlink(url: str) -> tuple[str, str]:
+    """Giải mã chuyển hướng shortlink TikTok (vt.tiktok.com, vm.tiktok.com, m.tiktok.com)."""
+    clean_url = extract_url_from_text(url)
+    final_url = clean_url
+    item_id = ""
+
+    if any(s in clean_url.lower() for s in ["vt.tiktok.com", "vm.tiktok.com", "m.tiktok.com"]):
+        try:
+            resp = requests.get(
+                clean_url,
+                headers={"User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1"},
+                allow_redirects=True,
+                timeout=8
+            )
+            final_url = resp.url
+        except Exception as e:
+            print(f"TikTok redirect resolve error: {e}")
+
+    id_match = re.search(r'/(?:video|photo)/(\d+)', final_url)
+    if id_match:
+        item_id = id_match.group(1)
+    elif re.search(r'^\d+$', clean_url.strip()):
+        item_id = clean_url.strip()
+
+    return final_url, item_id
+
+
 def extract_tiktok_media(raw_url: str) -> dict:
-    """Trích xuất Video Không Logo, MP3 và Album ảnh từ TikTok."""
+    """Trích xuất Video Không Logo, MP3 và Album ảnh từ TikTok với cơ chế đa tầng."""
     clean_url = extract_url_from_text(raw_url)
     if not clean_url:
         raise ValueError("Vui lòng nhập liên kết TikTok hợp lệ.")
 
-    # Bước 1: Trích xuất qua TikWM API
+    final_url, item_id = resolve_tiktok_shortlink(clean_url)
+    canonical_url = f"https://www.tiktok.com/@user/video/{item_id}" if item_id else final_url
+
+    # Bước 1: Thử TikWM API với clean_url và canonical_url
+    for target in [clean_url, canonical_url, final_url]:
+        if not target:
+            continue
+        try:
+            resp = requests.post(
+                "https://www.tikwm.com/api/",
+                data={"url": target, "hd": 1},
+                headers=HEADERS,
+                timeout=12
+            )
+            if resp.status_code == 200:
+                res_json = resp.json()
+                if res_json.get("code") == 0:
+                    data = res_json.get("data", {})
+                    
+                    author = data.get("author", {})
+                    author_name = author.get("nickname") or author.get("unique_id") or "TikTok User"
+                    author_username = author.get("unique_id") or "user"
+                    author_avatar = author.get("avatar") or "https://p16-sign-sg.tiktokcdn.com/tos-alisg-avt-0068/default.jpeg"
+                    
+                    title = data.get("title") or "TikTok Media"
+                    ret_id = str(data.get("id") or item_id or int(time.time()))
+                    duration = data.get("duration", 0)
+                    duration_str = format_duration(duration) if duration else "HD"
+
+                    video_url = data.get("hdplay") or data.get("play") or ""
+                    wm_video_url = data.get("wmplay") or ""
+                    cover = data.get("cover") or data.get("origin_cover") or ""
+
+                    music_url = data.get("music") or ""
+                    music_info = data.get("music_info", {})
+                    music_title = music_info.get("title") or "Âm thanh gốc"
+                    music_author = music_info.get("author") or author_name
+
+                    raw_images = data.get("images") or []
+                    photos = []
+                    if raw_images and isinstance(raw_images, list):
+                        for idx, img_url in enumerate(raw_images):
+                            photos.append({
+                                "index": idx + 1,
+                                "type": "image",
+                                "preview_url": img_url,
+                                "download_url": img_url,
+                                "alt": f"Photo {idx + 1}"
+                            })
+
+                    has_images = len(photos) > 0
+                    has_video = bool(video_url) and not has_images
+                    has_music = bool(music_url)
+
+                    return {
+                        "platform": "tiktok",
+                        "id": ret_id,
+                        "title": title,
+                        "author_name": author_name,
+                        "author_username": author_username,
+                        "author_avatar": author_avatar,
+                        "cover": cover,
+                        "duration": duration,
+                        "duration_str": duration_str,
+                        "has_video": has_video,
+                        "video_url": video_url,
+                        "video_wm_url": wm_video_url,
+                        "has_music": has_music,
+                        "music_url": music_url,
+                        "music_title": music_title,
+                        "music_author": music_author,
+                        "has_images": has_images,
+                        "photos": photos,
+                        "url": clean_url
+                    }
+        except Exception as e:
+            print(f"TikTok TikWM attempt error for {target[:40]}: {e}")
+
+    # Bước 2: Thử qua yt-dlp nếu có
+    cookies_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.txt")
+    opts = {
+        'quiet': True,
+        'no_warnings': True,
+        'skip_download': True,
+        'http_headers': HEADERS
+    }
+    if os.path.exists(cookies_file):
+        opts['cookiefile'] = cookies_file
+
     try:
-        resp = requests.post(
-            "https://www.tikwm.com/api/",
-            data={"url": clean_url, "hd": 1},
-            headers=HEADERS,
-            timeout=12
-        )
-        if resp.status_code == 200:
-            res_json = resp.json()
-            if res_json.get("code") == 0:
-                data = res_json.get("data", {})
-                
-                author = data.get("author", {})
-                author_name = author.get("nickname") or author.get("unique_id") or "TikTok User"
-                author_username = author.get("unique_id") or "user"
-                author_avatar = author.get("avatar") or "https://p16-sign-sg.tiktokcdn.com/tos-alisg-avt-0068/default.jpeg"
-                
-                title = data.get("title") or "TikTok Media"
-                item_id = str(data.get("id") or int(time.time()))
-                duration = data.get("duration", 0)
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            target_ydl = canonical_url if item_id else final_url
+            info = ydl.extract_info(target_ydl, download=False)
+            if info:
+                title = info.get("title") or info.get("description") or "TikTok Video"
+                uploader = info.get("uploader") or info.get("creator") or "TikTok User"
+                video_url = info.get("url") or ""
+                thumbnail = info.get("thumbnail") or ""
+                duration = info.get("duration", 0)
                 duration_str = format_duration(duration) if duration else "HD"
-
-                video_url = data.get("hdplay") or data.get("play") or ""
-                wm_video_url = data.get("wmplay") or ""
-                cover = data.get("cover") or data.get("origin_cover") or ""
-
-                music_url = data.get("music") or ""
-                music_info = data.get("music_info", {})
-                music_title = music_info.get("title") or "Âm thanh gốc"
-                music_author = music_info.get("author") or author_name
-
-                raw_images = data.get("images") or []
-                photos = []
-                if raw_images and isinstance(raw_images, list):
-                    for idx, img_url in enumerate(raw_images):
-                        photos.append({
-                            "index": idx + 1,
-                            "type": "image",
-                            "preview_url": img_url,
-                            "download_url": img_url,
-                            "alt": f"Photo {idx + 1}"
-                        })
-
-                has_images = len(photos) > 0
-                has_video = bool(video_url) and not has_images
-                has_music = bool(music_url)
 
                 return {
                     "platform": "tiktok",
-                    "id": item_id,
+                    "id": item_id or str(info.get("id") or int(time.time())),
                     "title": title,
-                    "author_name": author_name,
-                    "author_username": author_username,
-                    "author_avatar": author_avatar,
-                    "cover": cover,
+                    "author_name": uploader,
+                    "author_username": "user",
+                    "author_avatar": thumbnail or "https://p16-sign-sg.tiktokcdn.com/tos-alisg-avt-0068/default.jpeg",
+                    "cover": thumbnail,
                     "duration": duration,
                     "duration_str": duration_str,
-                    "has_video": has_video,
+                    "has_video": bool(video_url),
                     "video_url": video_url,
-                    "video_wm_url": wm_video_url,
-                    "has_music": has_music,
-                    "music_url": music_url,
-                    "music_title": music_title,
-                    "music_author": music_author,
-                    "has_images": has_images,
-                    "photos": photos,
+                    "has_music": bool(video_url),
+                    "music_url": video_url,
+                    "music_title": "Âm thanh gốc TikTok",
+                    "music_author": uploader,
+                    "has_images": False,
+                    "photos": [],
                     "url": clean_url
                 }
     except Exception as e:
-        print(f"TikTok TikWM extraction error: {e}")
+        print(f"TikTok yt-dlp error: {e}")
 
-    # Bước 2: Fallback qua LoveTik API
-    try:
-        r_love = requests.post(
-            "https://lovetik.com/api/ajax/search",
-            data={"query": clean_url},
-            headers=HEADERS,
-            timeout=8
-        )
-        if r_love.status_code == 200:
-            ld = r_love.json()
-            if ld.get("status") == "ok":
-                links = ld.get("links", [])
-                video_url = ""
-                music_url = ""
-                for l in links:
-                    if l.get("t") == "Nowatermark":
-                        video_url = l.get("a", "")
-                    elif l.get("t") == "MP3":
-                        music_url = l.get("a", "")
-                
-                if video_url:
-                    return {
-                        "platform": "tiktok",
-                        "id": ld.get("vid", str(int(time.time()))),
-                        "title": ld.get("desc") or "TikTok Video",
-                        "author_name": ld.get("author", "TikTok Creator"),
-                        "author_username": ld.get("author", "user"),
-                        "author_avatar": ld.get("cover", ""),
-                        "cover": ld.get("cover", ""),
-                        "duration_str": "HD",
-                        "has_video": True,
-                        "video_url": video_url,
-                        "has_music": bool(music_url),
-                        "music_url": music_url,
-                        "music_title": "Âm thanh gốc",
-                        "music_author": ld.get("author", "TikTok Creator"),
-                        "has_images": False,
-                        "photos": [],
-                        "url": clean_url
-                    }
-    except Exception as e:
-        print(f"LoveTik fallback error: {e}")
-
-    raise ValueError("Không thể trích xuất TikTok. Vui lòng kiểm tra lại liên kết hoặc thử lại sau!")
+    raise ValueError("Không thể trích xuất TikTok này. Video có thể đã bị xóa, đặt ở chế độ riêng tư hoặc yêu cầu đăng nhập!")
 
 
 def extract_tiktok_douyin_media(raw_url: str) -> dict:
