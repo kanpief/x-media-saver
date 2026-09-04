@@ -68,6 +68,11 @@ def handle_exception(e):
 def index():
     return render_template("index.html")
 
+@app.route("/health")
+def health_check():
+    """Endpoint kiểm tra trạng thái hoạt động dành riêng cho UptimeRobot / Ping monitor."""
+    return jsonify({"status": "ok", "timestamp": int(time.time()), "message": "SGX Media Saver is active"}), 200
+
 @app.after_request
 def add_security_headers(response):
     """Cung cấp các tiêu đề bảo mật cao cấp (CSP, HSTS, X-Content-Type-Options, etc.)."""
