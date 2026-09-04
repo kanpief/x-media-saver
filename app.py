@@ -343,7 +343,7 @@ def api_stream_file():
             res_headers["Content-Length"] = content_length
 
         return Response(
-            stream_with_context(req.iter_content(chunk_size=131072)),
+            stream_with_context(req.iter_content(chunk_size=524288)),
             headers=res_headers,
             status=200
         )
@@ -467,7 +467,7 @@ def api_start_download():
 
 @app.route("/api/stream-youtube")
 def api_stream_youtube():
-    """Gửi file YouTube đã tải xong về trình duyệt."""
+    """Gửi file YouTube đã tải xong về trình duyệt với hỗ trợ Range tải đa luồng."""
     task_id = request.args.get("task_id", "")
     if not task_id:
         yt_url = request.args.get("url")
@@ -479,7 +479,7 @@ def api_stream_youtube():
         temp_path = os.path.join(DOWNLOADS_DIR, f"sync_{int(time.time())}.{ext}")
         try:
             final_path = download_youtube_file(yt_url, target_type, quality, temp_path)
-            return send_file(final_path, as_attachment=True, download_name=f"{clean_title}.{ext}")
+            return send_file(final_path, as_attachment=True, download_name=f"{clean_title}.{ext}", conditional=True, max_age=0)
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500
 
@@ -513,7 +513,7 @@ def api_stream_youtube():
             pass
         return response
 
-    return send_file(final_path, as_attachment=True, download_name=f"{clean_title}.{ext}")
+    return send_file(final_path, as_attachment=True, download_name=f"{clean_title}.{ext}", conditional=True, max_age=0)
 
 
 @app.route("/api/save-cookies", methods=["POST"])

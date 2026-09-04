@@ -490,10 +490,11 @@ def download_youtube_file(url: str, target_type: str, quality_id: str, output_pa
         extra_opts = {
             'outtmpl': f"{base_output}.%(ext)s",
             'noplaylist': True,
-            'retries': 5,
-            'fragment_retries': 5,
-            'buffersize': 32768,
-            'http_chunk_size': 10485760,
+            'retries': 3,
+            'fragment_retries': 3,
+            'buffersize': 65536,
+            'http_chunk_size': 20971520,
+            'concurrent_fragment_downloads': 16,
         }
         
         if progress_callback:
@@ -502,21 +503,19 @@ def download_youtube_file(url: str, target_type: str, quality_id: str, output_pa
         if target_type == "mp3":
             extra_opts.update({
                 'format': 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best',
-                'concurrent_fragment_downloads': 8,
                 'postprocessors': [{
                     'key': 'FFmpegExtractAudio',
                     'preferredcodec': 'mp3',
-                    'preferredquality': quality_id or '320',
+                    'preferredquality': quality_id or '192',
                 }],
-                'postprocessor_args': ['-threads', '2'],
+                'postprocessor_args': ['-threads', '4', '-preset', 'ultrafast'],
             })
         else:
             format_spec = quality_id or 'bestvideo+bestaudio/best'
             extra_opts.update({
                 'format': format_spec,
-                'concurrent_fragment_downloads': 8,
                 'merge_output_format': 'mp4',
-                'postprocessor_args': ['-threads', '2'],
+                'postprocessor_args': ['-threads', '4', '-c', 'copy'],
             })
 
         ydl_opts = get_yt_opts(extra_opts)
